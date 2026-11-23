@@ -7,6 +7,8 @@ Local web viewer for a VEVOR FB-A01 smart bird feeder ("Q8" camera module, VicoH
 - `python3 server.py` — poller + web UI at http://localhost:8080
 - `python3 server.py --probe` — log in once, print devices and the newest event (secrets hidden), exit.
 - Config lives in `.env` (see `.env.example`). Restart the server after editing it.
+- **This repo is public.** Personal deployment details (the box's address, what else runs on it) live in `CLAUDE.local.md`, which is gitignored. Keep credentials, IPs, hostnames, account/device identifiers and camera images out of tracked files.
+- `./deploy.sh` — push to a dedicated Linux box (`DEPLOY_HOST`, `DEPLOY_USER` in `.env`; `DEPLOY_PORT` default 8090) and restart it there as the systemd **user** service `birdfeeder.service` in `~/birdfeeder-viewer`. The first run installs this Mac's `id_ed25519` key using `DEPLOY_PASSWORD` (fed through `SSH_ASKPASS`, never written to disk) and tries to turn on linger so the service starts at boot. Copies `server.py`, `static/`, and `.env` (minus `HOST`/`PORT`/`DEPLOY_*` lines, plus `HOST=0.0.0.0` and `PORT=$DEPLOY_PORT`, mode 600); copies `data/` only when the box has no archive yet, and never deletes it. On success it stops a `server.py` running on this Mac, because two copies would log each other out of VicoHome. Logs: `ssh <user>@<box> journalctl --user -u birdfeeder -n 50`.
 
 ## Constraints
 
