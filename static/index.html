@@ -6,8 +6,9 @@
 <meta name="theme-color" content="#f4f2ec" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0f120f" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Feeder">
+<meta name="apple-mobile-web-app-status-bar-style" content="default"><meta name="apple-mobile-web-app-title" content="Feeder">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
 <title>Bird Feeder</title>
@@ -65,19 +66,33 @@
   /* ---- header */
   header {
     position: sticky; top: 0; z-index: 10;
-    background: color-mix(in srgb, var(--bg) 85%, transparent);
-    -webkit-backdrop-filter: saturate(1.4) blur(16px); backdrop-filter: saturate(1.4) blur(16px);
-    padding-top: env(safe-area-inset-top);
-  }
-  .bar { max-width: 1280px; margin: 0 auto; display: flex; align-items: center; gap: 10px; padding: 8px var(--gutter); }
-  .title { flex: 1; min-width: 0; }
-  h1 { font-size: 22px; line-height: 1.15; margin: 0; letter-spacing: -.02em; font-weight: 700; }
-  .sub { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+    background: var(--bg);
+    padding-top: calc(10px + env(safe-area-inset-top));
+  }  .bar { max-width: 1280px; margin: 0 auto; display: flex; align-items: center; gap: 10px; padding: 8px var(--gutter); }
+  .title { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; }
+  h1.logo { margin: 0; flex: none; line-height: 0; }
+  h1.logo img { width: 40px; height: 40px; border-radius: 10px; display: block; }
+  .meta { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .sub { min-width: 0; display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
   .sub span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .hstats { display: flex; gap: 10px; align-items: center; color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+  .hstats { display: flex; gap: 10px; align-items: center; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .hstats:empty { display: none; }
+  .hstats svg.i { width: 16px; height: 16px; }
   .hstat { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
   .hstat.warn { color: var(--warn); } .hstat.bad { color: var(--bad); }
   #refresh.busy svg { animation: spin 1s linear infinite; }
+
+  /* ---- pull to refresh (home-screen apps get no native one) */
+  html { overscroll-behavior-y: none; }
+  .ptr {
+    position: fixed; left: 50%; z-index: 9; width: 36px; height: 36px; margin-left: -18px;
+    border-radius: 50%; background: var(--surface); color: var(--muted); box-shadow: var(--shadow);
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; transform: translateY(-44px); pointer-events: none;
+  }
+  .ptr.back { transition: transform .2s, opacity .2s; }
+  .ptr.ready { color: var(--accent); }
+  .ptr.go svg { animation: spin 1s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
 
   /* ---- layout */
@@ -94,7 +109,7 @@
   .player[data-state="live"] video { opacity: 1; }
   .player[data-state="live"] .poster { display: none; }
   .ov { position: absolute; left: 0; right: 0; display: flex; align-items: center; gap: 8px; padding: 10px; }
-  .ov-top { top: 0; background: linear-gradient(rgba(0,0,0,.45), transparent); }
+  .ov-top { top: 0; }
   .ov-bottom { bottom: 0; justify-content: flex-end; background: linear-gradient(transparent, rgba(0,0,0,.45)); }
   .ov-top, .ov-bottom { opacity: 0; pointer-events: none; transition: opacity .25s; }
   .player[data-state="live"] .ov-top, .player[data-state="live"] .ov-bottom { opacity: 1; pointer-events: auto; }
@@ -195,6 +210,16 @@
   .dlg-top .label { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .dlg-top .time { color: var(--muted); font-size: 13px; }
   .media { background: #000; aspect-ratio: 16/9; flex: none; display: flex; align-items: center; justify-content: center; }
+  .media-wrap { position: relative; flex: none; }
+  .dlg-status {
+    position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); max-width: calc(100% - 24px);
+    display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px;
+    background: rgba(20,20,20,.62); color: #fff; font-size: 13px; white-space: nowrap; overflow: hidden;
+    -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); pointer-events: none;
+  }
+  .dlg-status span { overflow: hidden; text-overflow: ellipsis; }
+  .dlg-status .spinner { width: 14px; height: 14px; border-width: 2px; flex: none; }
+  .dlg-status.done .spinner { display: none; }
   .media video, .media img { width: 100%; height: 100%; object-fit: contain; display: block; }
   .strip { display: flex; gap: 6px; overflow-x: auto; padding: 10px 16px 0; scrollbar-width: none; flex: none; }
   .strip::-webkit-scrollbar { display: none; }
@@ -204,8 +229,10 @@
   .dlg-body { flex: 1; overflow: auto; padding: 12px 16px; }
   .story { color: var(--muted); font-size: 14px; margin-bottom: 8px; }
   details.raw summary { cursor: pointer; color: var(--muted); font-size: 13px; min-height: 36px; display: flex; align-items: center; }
-  .actions { display: flex; gap: 8px; border-top: 1px solid var(--border); padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); }
-  .actions > * { flex: 1; }
+  .actions { display: flex; align-items: center; gap: 8px; border-top: 1px solid var(--border); padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); }
+  .actions > * { flex: 1; white-space: nowrap; }
+  .actions > .icon-btn { flex: none; }
+  svg.i.flip { transform: scaleX(-1); }
   .del { color: var(--bad); }
 
   /* ---- larger screens */
@@ -226,12 +253,27 @@
   }
   @media (min-width: 1000px) {
     .layout { grid-template-columns: minmax(0, 1.55fr) minmax(340px, 1fr); gap: 28px; align-items: start; }
-    .stage { position: sticky; top: calc(72px + env(safe-area-inset-top)); }
+    .stage { position: sticky; top: calc(82px + env(safe-area-inset-top)); }
   }
   @media (hover: hover) {
     .tile:hover img { filter: brightness(1.08); }
     .day summary:hover .day-name { color: var(--accent); }
     .hour:not(.future):hover i { background: color-mix(in srgb, var(--accent) 70%, var(--text)); }
+  }
+  /* ---- phone turned sideways: nothing but the video (tap it for the controls) */
+  @media (orientation: landscape) and (max-height: 500px) {
+    body { overflow: hidden; background: #000; }
+    header, .ptr, .stage > .pad, .layout > section:not(.stage) { display: none !important; }
+    .layout, .stage { display: block; padding: 0; position: static; }
+    .player { position: fixed; inset: 0; z-index: 20; aspect-ratio: auto; border-radius: 0; box-shadow: none; }
+    .ov { padding-left: max(10px, env(safe-area-inset-left)); padding-right: max(10px, env(safe-area-inset-right)); }
+    .player[data-state="live"] .ov-top, .player[data-state="live"] .ov-bottom { opacity: 0; pointer-events: none; }
+    .player.show-ctl[data-state="live"] .ov-top, .player.show-ctl[data-state="live"] .ov-bottom { opacity: 1; pointer-events: auto; }
+    /* a visit open in the viewer: just its picture or clip */
+    dialog { margin: 0; width: 100%; height: 100%; max-width: 100%; max-height: 100%; border: none; border-radius: 0; background: #000; }
+    .dlg-top, .strip, .dlg-body, .actions { display: none !important; }
+    .media-wrap { flex: 1; min-height: 0; }
+    .media { height: 100%; aspect-ratio: auto; }
   }
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation: none !important; transition: none !important; }
@@ -255,15 +297,19 @@
 <header>
   <div class="bar">
     <div class="title">
-      <h1 id="title">Bird Feeder</h1>
-      <div class="sub"><span class="dot" id="sub-dot"></span><span id="sub-text">Connecting…</span></div>
+      <h1 class="logo"><img src="/icon-192.png" alt="Bird Feeder" width="40" height="40"></h1>
+      <div class="meta">
+        <div class="sub"><span class="dot" id="sub-dot"></span><span id="sub-text">Connecting…</span></div>
+        <div class="hstats" id="hstats"></div>
+      </div>
     </div>
-    <div class="hstats" id="hstats"></div>
     <button class="toggle" id="auto-btn" aria-pressed="false"
       title="Record a clip from live view whenever a new visit comes in. Keep this page open."><span class="dot"></span>Auto-record</button>
     <button class="icon-btn" id="refresh" aria-label="Check for new visits" title="Check for new visits"><svg class="i"><use href="#i-refresh"/></svg></button>
   </div>
 </header>
+
+<div class="ptr" id="ptr" aria-hidden="true"><svg class="i"><use href="#i-refresh"/></svg></div>
 
 <div class="layout">
   <section class="stage" aria-label="Live view and today">
@@ -324,17 +370,20 @@
     </div>
     <button class="icon-btn" id="dlg-close" aria-label="Close"><svg class="i"><use href="#i-close"/></svg></button>
   </div>
-  <div class="media" id="dlg-media"></div>
+  <div class="media-wrap">
+    <div class="media" id="dlg-media"></div>
+    <div class="dlg-status" id="dlg-status" aria-live="polite" hidden><div class="spinner"></div><span id="dlg-status-text"></span></div>
+  </div>
   <div class="strip" id="dlg-strip" hidden></div>
   <div class="dlg-body">
     <div class="story" id="dlg-story" hidden></div>
     <details class="raw"><summary>Raw event data</summary><pre id="dlg-raw"></pre></details>
   </div>
   <div class="actions">
-    <button id="dlg-prev" aria-label="Older visit">‹ Older</button>
+    <button class="icon-btn" id="dlg-prev" aria-label="Older visit" title="Older visit"><svg class="i flip"><use href="#i-chev"/></svg></button>
     <a class="btn" id="dlg-download" download>Download</a>
     <button class="del" id="dlg-delete" hidden>Delete</button>
-    <button id="dlg-next" aria-label="Newer visit">Newer ›</button>
+    <button class="icon-btn" id="dlg-next" aria-label="Newer visit" title="Newer visit"><svg class="i"><use href="#i-chev"/></svg></button>
   </div>
 </dialog>
 
@@ -423,10 +472,11 @@ function renderStatus(st) {
   const dev = st.device || {};
   const s = st.status || {};
   const known = dev.online !== undefined;
-  $('title').textContent = dev.deviceName || 'Bird Feeder';
   const checked = s.polling ? 'checking…' : (s.last_poll ? 'checked ' + ago(s.last_poll * 1000) : 'starting…');
   $('sub-dot').className = 'dot ' + (s.last_error ? 'bad' : !known ? '' : dev.online === 1 ? 'ok' : 'bad');
-  $('sub-text').textContent = [known ? (dev.online === 1 ? 'Online' : 'Offline') : null, checked].filter(Boolean).join(' · ');
+  // Just the camera's state; when we last asked VicoHome for visits is in the tooltip.
+  $('sub-text').textContent = known ? (dev.online === 1 ? 'Online' : 'Offline') : 'Connecting…';
+  $('sub-text').parentNode.title = 'Camera ' + (known ? (dev.online === 1 ? 'online' : 'offline') : 'status unknown') + ', ' + checked;
 
   const box = $('hstats');
   box.replaceChildren();
@@ -603,6 +653,8 @@ function openEvent(traceId) {
     dl = local.image ? '/media/' + local.image : '';
   }
   $('dlg-delete').hidden = !local.video;
+  // The card keeps every visit's full recording: fetch it now (once per page load) unless we have it.
+  sdForView(ev);
   $('dlg-delete').title = ev._synthetic ? 'Delete this recording' : 'Delete the clip (the snapshot stays)';
   const a = $('dlg-download');
   a.hidden = !dl;
@@ -634,6 +686,7 @@ function openEvent(traceId) {
   $('dlg-next').disabled = i === 0;
   $('dlg-prev').disabled = i === events.length - 1;
   if (!$('dlg').open) $('dlg').showModal();
+  showSdStatus();
   const on = strip.querySelector('.on');
   if (on) on.scrollIntoView({ block: 'nearest', inline: 'center' });
 }
@@ -669,7 +722,11 @@ $('dlg-delete').onclick = async () => {
     b.disabled = false;
   }
 };
-$('dlg').addEventListener('close', () => { stopMedia(); current = null; });
+$('dlg').addEventListener('close', () => {
+  stopMedia(); current = null;
+  dropViewSd();
+  resumeLiveSoon();   // live view paused for a clip download comes back once the viewer closes
+});
 $('dlg').addEventListener('click', (e) => { if (e.target === $('dlg')) $('dlg').close(); });
 document.addEventListener('keydown', (e) => {
   if (!$('dlg').open) return;
@@ -679,6 +736,7 @@ document.addEventListener('keydown', (e) => {
 
 // ---------------------------------------------------------------- Data
 let autoStarted = false;
+let lastStatusLive = false;
 
 async function load() {
   try {
@@ -686,6 +744,7 @@ async function load() {
     const st = await fetch('/api/status' + (auto ? '?watch=1' : '')).then(r => r.json());
     cfg.recordSeconds = st.record_seconds || cfg.recordSeconds;
     renderStatus(st);
+    sdDevice = hasSdCard(st.device);
     if (st.rev !== load.rev) {   // the archive changed: fetch the events again
       const evs = await fetch('/api/events').then(r => r.json());
       load.rev = st.rev;
@@ -697,7 +756,8 @@ async function load() {
       }
     }
     renderToday();   // every time, so "last visit 5m ago" stays current
-    $('live-start').disabled = !st.live;
+    lastStatusLive = !!st.live;
+    $('live-start').disabled = !st.live || !!(live && live.sd);
     if (st.live && !autoStarted && document.visibilityState === 'visible') { autoStarted = true; startLive(); }
     else if (!st.live && !live) setPlayer('idle', 'Waiting for the first check of the camera…');
     if (st.live) checkAuto(st.newest);
@@ -731,7 +791,7 @@ function renderAuto() {
 }
 
 $('auto-btn').onclick = () => {
-  if (!auto && !window.MediaRecorder) { showError('This browser cannot record video. Try Safari or Chrome.'); return; }
+  if (!auto && !window.MediaRecorder && !sdDevice) { showError('This browser cannot record video. Try Safari or Chrome.'); return; }
   auto = !auto;
   try { localStorage.setItem(AUTO_KEY, auto ? '1' : '0'); } catch (e) {}
   renderAuto();
@@ -743,10 +803,18 @@ function checkAuto(newest) {
   const first = seenNewest === undefined;
   if (id === seenNewest) return;
   seenNewest = id;
-  if (first || !auto || !id || !window.MediaRecorder) return;
+  if (first || !auto || !id || (!window.MediaRecorder && !sdDevice)) return;
   // Log every decision so a missed visit can be explained from the connection log.
   const age = Math.round(Date.now() / 1000 - newest.ts);
   const at = fmtTime(newest.ts * 1000);
+  if (sdDevice) {
+    // The camera recorded this visit to its card from the motion trigger: fetch that (better than
+    // a live clip started 15-45 s late). If live view is already playing, keep a live clip meanwhile.
+    liveLog('auto-record: new visit at ' + at + ' (' + age + ' s ago), fetching the full clip from the SD card');
+    queueSd(id, newest.ts);
+    if (live && live.played && !live.sd && !rec) startRecording(id, cfg.recordSeconds);
+    return;
+  }
   if (age > AUTO_MAX_AGE_S) { liveLog('auto-record: visit at ' + at + ' skipped, reported ' + age + ' s late'); return; }
   if (rec) { liveLog('auto-record: visit at ' + at + ' falls in the clip already recording'); return; }
   liveLog('auto-record: new visit at ' + at + ' (' + age + ' s ago)');
@@ -822,6 +890,7 @@ async function finishRecording(R) {
     liveLog('clip saved: ' + Math.round(secs) + ' s, ' + Math.round(blob.size / 1024) + ' KB');
     load();
   } catch (err) {
+    if (/409/.test(err.message)) { liveLog('live clip not kept: the visit already has the full SD clip'); return; }
     liveLog('saving the clip failed: ' + err.message);
     showError('Saving the recorded clip failed: ' + err.message);
   }
@@ -838,7 +907,7 @@ function renderRec() {
     b.textContent = '⏺ Record';
     b.classList.remove('rec');
     b.setAttribute('aria-label', 'Record a clip');
-    b.disabled = !(live && live.played) || !window.MediaRecorder;
+    b.disabled = !(live && live.played) || live.sd || !window.MediaRecorder;
   }
 }
 
@@ -854,6 +923,49 @@ $('refresh').onclick = async () => {
   try { await fetch('/api/refresh', { method: 'POST' }); } catch (e) {}
   setTimeout(() => { b.disabled = false; b.classList.remove('busy'); load(); }, 4000);
 };
+
+// ---------------------------------------------------------------- Pull to refresh
+// Pulling down at the top of the page reloads it (and asks the server to poll now).
+// While a recording or SD download is running it only does what the ↻ button does,
+// so the upload isn't cut off.
+const phoneLandscape = matchMedia('(orientation: landscape) and (max-height: 500px)');
+(() => {
+  const el = $('ptr');
+  const TRIGGER = 70, MAX = 110;
+  let y0 = null, pull = 0;
+  const show = (d) => {
+    el.style.transform = `translateY(${d - 44}px) rotate(${d * 3}deg)`;
+    el.style.opacity = Math.min(1, d / TRIGGER);
+    el.classList.toggle('ready', d >= TRIGGER);
+  };
+  const reset = () => { y0 = null; pull = 0; el.classList.add('back'); show(0); };
+  addEventListener('touchstart', (e) => {
+    if (scrollY > 0 || $('dlg').open || phoneLandscape.matches || e.touches.length > 1 || el.classList.contains('go')) { y0 = null; return; }
+    el.style.top = document.querySelector('header').getBoundingClientRect().bottom + 'px';
+    el.classList.remove('back');
+    y0 = e.touches[0].clientY; pull = 0;
+  }, { passive: true });
+  addEventListener('touchmove', (e) => {
+    if (y0 === null) return;
+    const dy = e.touches[0].clientY - y0;
+    pull = dy > 0 && scrollY <= 0 ? Math.min(MAX, dy * 0.5) : 0;
+    show(pull);
+  }, { passive: true });
+  addEventListener('touchend', () => {
+    if (y0 === null) return;
+    if (pull < TRIGGER) return reset();
+    y0 = null;
+    el.classList.add('back', 'go');
+    show(TRIGGER);
+    if (rec || (live && live.sd)) {
+      $('refresh').click();
+      setTimeout(() => { el.classList.remove('go'); reset(); }, 1200);
+      return;
+    }
+    fetch('/api/refresh', { method: 'POST' }).catch(() => {}).finally(() => location.reload());
+  });
+  addEventListener('touchcancel', () => { if (y0 !== null) reset(); });
+})();
 
 // ---------------------------------------------------------------- Live view
 // WebRTC with the camera via VicoHome's TURN relays. Signalling goes through
@@ -871,6 +983,12 @@ const b64dec = (s) => new TextDecoder().decode(Uint8Array.from(atob(s), c => c.c
 
 // Player states: idle | connecting | live | stopped
 function setPlayer(state, msg) {
+  const busy = !!(live && live.sd);
+  if (busy) {   // an SD download: show it in the viewer, keep the home screen quiet
+    if (msg) sdNote(live, msg);
+    state = 'idle'; msg = '';
+  }
+  $('live-start').disabled = busy || !lastStatusLive;
   $('player').dataset.state = state;
   if (msg !== undefined) $('live-msg').textContent = msg;
   $('live-dot').className = 'dot ' + (state === 'live' ? 'ok' : state === 'connecting' ? 'warn' : state === 'stopped' ? 'bad' : '');
@@ -908,11 +1026,15 @@ function stopLive(reason) {
   const L = live; live = null;
   renderRec();
   clearTimeout(L.maxTimer); clearTimeout(L.frameTimer); clearInterval(L.clock);
+  clearTimeout(L.peerOutTimer); clearTimeout(L.sdKick);
+  try { L.audioCtx && L.audioCtx.close(); } catch (e) {}
+  setTimeout(drainSd, 5000);   // SD clips queued while this session ran
   try { L.dc && L.dc.close(); } catch (e) {}
   try { L.pc && L.pc.close(); } catch (e) {}
   try { L.ws && L.ws.close(); } catch (e) {}
   $('live-video').srcObject = null;
-  if (reason) { liveLog(reason); setPlayer('stopped', reason); }
+  if (reason && L.sd) { liveLog(reason); sdNote(L, reason, true); setPlayer('idle', ''); }
+  else if (reason) { liveLog(reason); setPlayer('stopped', reason); }
   else setPlayer('idle', '');
 }
 
@@ -923,31 +1045,34 @@ function stopLive(reason) {
 function failLive(L, reason) {
   if (live !== L) return;
   const busy = /another tab/.test(reason || '');
-  const retry = !L.played && L.retries < (L.autoTrace ? 2 : 1) && (!busy || L.autoTrace);
+  const unattended = L.autoTrace || L.sd;
+  const retry = !L.played && L.retries < (unattended ? 2 : 1) && (!busy || unattended);
   if (!retry) {
     if (busy && L.autoTrace) reason = 'Couldn’t record the new visit: live view is open on another device or tab.';
     return stopLive(reason);
   }
   stopLive();
   liveLog(reason + ' Retrying…');
-  setPlayer('connecting', 'Retrying…');
+  if (L.sd) sdNote(L, 'Retrying…'); else setPlayer('connecting', 'Retrying…');
   setTimeout(() => {
-    if (!live && (L.autoTrace || document.visibilityState === 'visible')) startLive(L.retries + 1, L.autoTrace);
+    if (!live && (L.autoTrace || L.sd || document.visibilityState === 'visible')) startLive(L.retries + 1, L.autoTrace, L.sdVisits);
   }, busy ? 4000 : 2000);
 }
 
 // retries: how many times this start has already been retried (0 for a fresh start).
 // autoTrace: set when Auto-record opened this session for a new visit; it records once video flows.
-function startLive(retries, autoTrace) {
+// sdVisits: [{trace, ts}] to fetch from the SD card instead of watching (see runSd).
+function startLive(retries, autoTrace, sdVisits) {
   retries = typeof retries === 'number' ? retries : 0;
   const isRetry = retries > 0;
   stopLive();
   if (!isRetry && !autoTrace) $('live-log').textContent = '';
   $('live-video').srcObject = null;
-  liveStatus(autoTrace ? 'New visit, connecting to record it…' : 'Connecting…');
+  liveStatus(sdVisits ? 'Connecting to fetch the full clip from the SD card…'
+             : autoTrace ? 'New visit, connecting to record it…' : 'Connecting…');
   const L = live = { ws: null, pc: null, dc: null, t: null, pending: [], remoteSet: false, sessionId: null,
                      retries, played: false, offered: false, autoTrace: autoTrace || null,
-                     byAuto: !!autoTrace, keep: false };
+                     byAuto: !!autoTrace, keep: false, sd: !!sdVisits, sdVisits: sdVisits || null };
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   L.ws = new WebSocket(proto + '://' + location.host + '/api/live/ws');
   const send = (obj) => { if (L.ws.readyState === 1) L.ws.send(JSON.stringify(obj)); };
@@ -975,20 +1100,25 @@ function startLive(retries, autoTrace) {
           // (sent in Chinese); PEER_IN follows when it's awake. The 60 s timer covers real failures.
           liveLog('JOIN_LIVE_RESPONSE code=' + m.code + (m.message ? ' ' + m.message : ''));
           if (typeof m.code === 'number' && m.code !== 0) liveStatus('Waking the camera…');
+          // Code 0 means the camera is already awake: offer straight away instead of waiting for PEER_IN.
+          else if (m.code === 0) await onPeerIn(L, send, 'already awake');
           break;
         case 'WEBRTC_CONFIG': liveLog(summarize(m)); break;
         case 'PEER_IN':
           liveLog(summarize(m));
-          // The camera can announce itself more than once while waking; re-offering
-          // on the same session confuses it, so negotiate only once.
-          if (L.offered) { liveLog('camera joined again; keeping the first offer'); break; }
-          L.offered = true;
-          await sendOffer(L, send);
+          await onPeerIn(L, send);
           break;
         case 'PEER_OUT':
+          // Not proof the camera left: PEER_OUT also comes when another viewer (e.g. the phone app
+          // this session signed out) leaves, and it can name the camera even then
+          // (ha-vicohome-bridge). Give up only if the link doesn't come up shortly after.
           liveLog(summarize(m) + ' (signaling ' + (L.pc ? L.pc.signalingState : '-') + ', answer ' + (L.remoteSet ? 'yes' : 'no') + ')');
-          failLive(L, 'The camera left the session.');
+          clearTimeout(L.peerOutTimer);
+          L.peerOutTimer = setTimeout(() => {
+            if (live === L && !L.played && !(L.pc && L.pc.connectionState === 'connected')) failLive(L, 'The camera left the session.');
+          }, 8000);
           break;
+        case 'NEED_REAUTH': failLive(L, 'The camera ended the session (NEED_REAUTH).'); break;
         case 'TRANSMIT': await onTransmit(L, m); break;
         case 'TRANSMIT_RESPONSE': case 'RESPONSE': liveLog(summarize(m)); break;
         default: liveLog('unhandled ' + summarize(m));
@@ -997,6 +1127,21 @@ function startLive(retries, autoTrace) {
       liveLog('error: ' + err.message);
     }
   };
+}
+
+// The camera can announce itself several times while it wakes. Negotiate once; if it joins
+// again before answering, send the same offer again (at most every 3 s), as the bridge does.
+async function onPeerIn(L, send, why) {
+  clearTimeout(L.peerOutTimer);
+  if (!L.offered) {
+    L.offered = true;
+    if (why) liveLog('camera ' + why + ', sending the offer');
+    await sendOffer(L, send);
+  } else if (!L.remoteSet && L.offerMsg && Date.now() - L.offerSent >= 3000) {
+    liveLog('camera joined again without answering; sending the offer again');
+    L.offerSent = Date.now();
+    send(L.offerMsg);
+  }
 }
 
 function setupPeer(L, t, send) {
@@ -1012,8 +1157,31 @@ function setupPeer(L, t, send) {
     L.dc.send(JSON.stringify({ action: 'startLive', requestID: ts, connectionID: '', timeStamp: ts,
                                size: 'medium', resolution: '1280x720' }));
   };
-  L.dc.onmessage = (e) => liveLog('camera: ' + String(e.data).slice(0, 200));
-  const at = pc.addTransceiver('audio', { direction: 'sendrecv' });
+  L.dc.binaryType = 'arraybuffer';
+  L.dc.onmessage = (e) => {
+    if (typeof e.data === 'string') return liveLog('camera: ' + e.data.slice(0, 200));
+    if (L.sdTunnel) L.sdTunnel.push(e.data);   // SD card replies (AB CD frames)
+    else liveLog('camera: ' + e.data.byteLength + ' bytes');
+  };
+  // SD sessions send a silent audio track: without a real audio stream the camera doesn't
+  // answer the card listing (ha-vicohome-bridge). Live viewing sends no audio.
+  let silent = null;
+  if (L.sd) {
+    L.sdTunnel = new SdTunnel(L);
+    try {
+      const ctx = L.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const dst = ctx.createMediaStreamDestination();
+      const src = ctx.createConstantSource();
+      src.offset.value = 0; src.connect(dst); src.start();
+      ctx.resume().catch(() => {});
+      silent = dst.stream.getAudioTracks()[0] || null;
+    } catch (err) { liveLog('silent audio not available: ' + err.message); }
+  }
+  const at = pc.addTransceiver(silent || 'audio', { direction: 'sendrecv' });
+  L.dc.addEventListener('open', () => {
+    // Go to the card once video flows, or after 20 s without it (the bridge carries on too).
+    if (L.sd) L.sdKick = setTimeout(() => runSd(L), 20000);
+  });
   const vt = pc.addTransceiver('video', { direction: 'recvonly' });
   // Keep the offer small: the camera's embedded WebRTC stack silently drops a full
   // browser offer (it never answers). Offer only H.265 (the camera's live codec) then
@@ -1053,6 +1221,7 @@ function setupPeer(L, t, send) {
           $('live-time').textContent = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
         };
         tick(); L.clock = setInterval(tick, 1000);
+        if (L.sd) { runSd(L); return; }
         liveStatus('Live', 'ok');
         if (L.autoTrace && !rec) startRecording(L.autoTrace, cfg.recordSeconds);
         renderRec();
@@ -1097,15 +1266,28 @@ async function sendOffer(L, send) {
     .map(s => s.split(' ')[1]).filter(c => /^(H26[45]|VP[89]|AV1)$/i.test(c)))];
   liveLog('offer sent, video codecs offered: ' + (vcodecs.join(', ') || 'none') +
           ', SDP ' + offer.sdp.length + ' bytes (' + b64enc(JSON.stringify({ type: 'offer', sdp: offer.sdp })).length + ' base64)');
-  send({ method: 'TRANSMIT', messageType: 'SDP_OFFER',
-         messagePayload: b64enc(JSON.stringify({ type: 'offer', sdp: offer.sdp })),
-         mode: 'vicoo', recipientClientId: L.t.serial, senderClientId: L.t.id, sessionId: L.sessionId,
-         viewerType: 'a4x_sdk', resolution: '1280x720', version: '0.0.1' });
+  L.offerMsg = { method: 'TRANSMIT', messageType: 'SDP_OFFER',
+                 messagePayload: b64enc(JSON.stringify({ type: 'offer', sdp: offer.sdp })),
+                 mode: 'vicoo', recipientClientId: L.t.serial, senderClientId: L.t.id, sessionId: L.sessionId,
+                 viewerType: 'a4x_sdk', resolution: '1280x720', version: '0.0.1' };
+  L.offerSent = Date.now();
+  send(L.offerMsg);
+}
+
+// messagePayload is base64 JSON, plain JSON text, or (compact SDP) an object.
+function payloadOf(m) {
+  const p = m.messagePayload;
+  if (p && typeof p === 'object') return p;
+  if (typeof p !== 'string' || !p) return {};
+  try { return JSON.parse(b64dec(p)); } catch (e) { /* not base64 */ }
+  try { return JSON.parse(p); } catch (e) { return {}; }
 }
 
 async function onTransmit(L, m) {
-  const payload = JSON.parse(b64dec(m.messagePayload || ''));
-  if (m.messageType === 'SDP_ANSWER') {
+  const payload = payloadOf(m);
+  if (m.messageType === 'SDP_ANSWER' || m.messageType === 'SDP_OFFER_RESPONSE') {
+    if (L.remoteSet || typeof payload.sdp !== 'string') return;
+    if (m.version) liveLog('answer signalling version ' + m.version);
     const codec = (payload.sdp.match(/a=rtpmap:\d+ (H26[45]|VP[89]|AV1)/i) || [])[1];
     liveLog('answer received' + (codec ? ', video codec ' + codec : ''));
     await L.pc.setRemoteDescription({ type: 'answer', sdp: payload.sdp });
@@ -1116,6 +1298,323 @@ async function onTransmit(L, m) {
     if (L.remoteSet) await L.pc.addIceCandidate(c).catch(err => liveLog('ice: ' + err.message));
     else L.pending.push(c);
   }
+}
+
+// ---------------------------------------------------------------- SD card clips
+// With a microSD card the camera keeps its own full recording of each visit (full resolution,
+// from the motion trigger) at no cost. The VicoHome app plays those over the live session's data
+// channel; this does the same, following jbuck2005/ha-vicohome-bridge (MIT): once the session is
+// up, a framed stopLive, then HTTP requests tunnelled as {"action":"httpToDevice"} ("SafeRtc").
+// Every message is framed AB CD <type> 00 <stream:2> <flags:2> <length:4>; the camera replies
+// 0x12 (flags 0: status JSON with contentLength, else body), 0x16 body chunk, 0x1a end.
+// The clip is then uploaded to the server like a recording, so the server stays stdlib-only.
+const SD_SETTLE_S = 30;            // a visit's recording is finished about this long after it starts
+const SD_LOCAL_ROOT = 'https://127.0.0.1:15000';
+const SD_LOCAL_HOSTS = new Set(['', '127.0.0.1', 'localhost', 'api-local.safemo.com']);
+const SD_RESUME_AFTER_MS = 6000;   // a download that gets nothing new for this long is asked for again
+const SD_RESUMES = 3;
+const SD_CLIP_TIMEOUT_MS = 120000;
+const SD_BATCH = 5;                // visits fetched per camera wake
+let sdQueue = [];                  // [{trace, ts}] waiting for their SD clip
+let sdDevice = false;              // the camera reports a card
+
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+const mb = (n) => (n / 1048576).toFixed(1) + ' MB';
+function concat(parts) {
+  let n = 0;
+  for (const p of parts) n += p.length;
+  const out = new Uint8Array(n);
+  let o = 0;
+  for (const p of parts) { out.set(p, o); o += p.length; }
+  return out;
+}
+function hasSdCard(dev) { const sd = dev && dev.sdCard; return !!(sd && sd.total > 0); }
+
+function sdFrame(text, stream) {
+  const body = new TextEncoder().encode(text);
+  const buf = new Uint8Array(12 + body.length);
+  const dv = new DataView(buf.buffer);
+  dv.setUint16(0, 0xabcd); dv.setUint8(2, 0x18); dv.setUint16(4, stream); dv.setUint32(8, body.length);
+  buf.set(body, 12);
+  return buf;
+}
+
+// Paths one listed recording can be fetched by, best first: the listing's own local
+// downloadUrl / videoUrl, then one built from the file name.
+function sdPaths(item, name, serial) {
+  const out = [];
+  for (const key of ['downloadUrl', 'videoUrl']) {
+    const u = typeof item[key] === 'string' ? item[key].trim() : '';
+    if (!u) continue;
+    let p;
+    try { p = new URL(u, SD_LOCAL_ROOT); } catch (e) { continue; }
+    const host = /^[a-z]+:/i.test(u) ? p.hostname : '';
+    if (!SD_LOCAL_HOSTS.has(host) && p.hostname !== '127.0.0.1') continue;
+    const path = p.pathname + p.search;
+    if (path.startsWith('/') && !out.includes(path)) out.push(path);
+  }
+  const built = '/dc/video/mp4/' + name + '?sn=' + serial;
+  if (!out.includes(built)) out.push(built);
+  return out;
+}
+
+// The recording that covers a visit, else the nearest one within 30 s.
+function sdMatch(segs, ts) {
+  const cover = segs.filter(s => s.timestamp - 5 <= ts && ts <= s.timestamp + (s.period || 20) + 2);
+  const pool = cover.length ? cover : segs.filter(s => Math.abs(s.timestamp - ts) <= 30);
+  return pool.length ? pool.reduce((a, b) => Math.abs(a.timestamp - ts) <= Math.abs(b.timestamp - ts) ? a : b) : null;
+}
+
+class SdTunnel {
+  constructor(L) {
+    this.L = L;
+    this.stream = Math.floor(Math.random() * 1000);
+    this.tail = new Uint8Array(0);   // an incomplete frame left from the last message
+    this.streams = new Map();        // stream id -> {status, parts, size, end}
+  }
+  push(ab) {
+    const chunk = new Uint8Array(ab);
+    const raw = new Uint8Array(this.tail.length + chunk.length);
+    raw.set(this.tail); raw.set(chunk, this.tail.length);
+    const dv = new DataView(raw.buffer);
+    let j = 0;
+    while (j + 12 <= raw.length) {
+      if (raw[j] !== 0xab || raw[j + 1] !== 0xcd) { j++; continue; }
+      const typ = raw[j + 2], sid = dv.getUint16(j + 4), flags = dv.getUint16(j + 6), len = dv.getUint32(j + 8);
+      if (j + 12 + len > raw.length) break;
+      const pl = raw.slice(j + 12, j + 12 + len);
+      j += 12 + len;
+      let d = this.streams.get(sid);
+      if (!d) { d = { status: null, parts: [], size: 0, end: false }; this.streams.set(sid, d); }
+      if (typ === 0x1a) d.end = true;
+      else if (typ === 0x12 && flags === 0) d.status = new TextDecoder().decode(pl);
+      else if (typ === 0x12 || typ === 0x16) { d.parts.push(pl); d.size += pl.length; }
+    }
+    this.tail = raw.slice(j);
+  }
+  declared(d) {
+    try { return d && d.status ? Number(JSON.parse(d.status).contentLength || 0) : 0; } catch (e) { return 0; }
+  }
+  next() { this.stream = (this.stream + 1) % 0xffff; return this.stream; }
+  cmd(action, params) {
+    const sid = this.next(), now = Date.now();
+    const body = { requestID: now + '-' + Math.floor(Math.random() * 1000), connectionID: '7893feb',
+                   timeStamp: Math.floor(now / 1000), action };
+    if (params !== undefined) body.parameters = params;
+    this.L.dc.send(sdFrame(JSON.stringify(body), sid));
+    return sid;
+  }
+  http(method, path, headers, body) {
+    const sid = this.next();
+    const data = { acceptType: 0, body: body || '', localDomain: 'https://api-local.safemo.com', method, path,
+                   headers: (headers || []).concat(['safe-rtc-root-url:' + SD_LOCAL_ROOT, 'safe-rtc-version:1']) };
+    this.L.dc.send(sdFrame(JSON.stringify({ action: 'httpToDevice', data }), sid));
+    return sid;
+  }
+  // Resolves with the stream when complete, or with what arrived by the timeout or a stall.
+  wait(sid, timeoutMs, stallMs, onProgress) {
+    return new Promise((resolve) => {
+      const t0 = Date.now();
+      let lastSize = -1, lastChange = t0;
+      const tick = () => {
+        const d = this.streams.get(sid);
+        if (d) {
+          const want = this.declared(d);
+          if (d.size !== lastSize) { lastSize = d.size; lastChange = Date.now(); if (onProgress) onProgress(d.size, want); }
+          if (d.end || (want && d.size >= want)) return resolve(d);
+          if (stallMs && d.status && Date.now() - lastChange >= stallMs) return resolve(d);
+        }
+        if (live !== this.L || this.L.dc.readyState !== 'open' || Date.now() - t0 >= timeoutMs) return resolve(d || null);
+        setTimeout(tick, 300);
+      };
+      tick();
+    });
+  }
+  async prepare() {
+    await sleep(1000);
+    this.cmd('stopLive', {});
+    await sleep(1000);
+    this.http('POST', '/dc/rtcconnection/open', null, JSON.stringify({ deviceSdpMode: 0, serialNumber: this.L.t.serial }));
+    await sleep(2000);
+  }
+  async list(start, stop) {
+    const serial = this.L.t.serial;
+    const body = { app: { appType: 'Android', version: 0 }, crossCameraOnly: false, fromSDCard: true, storeType: 'sd_card',
+                   serialNumber: [serial], startTimestamp: Math.floor(start), endTimestamp: Math.floor(stop),
+                   from: 0, to: 2000, language: 'en', countryNo: 'US' };
+    const sid = this.http('POST', '/library/newselectlibrary', ['Content-Type:application/json'], JSON.stringify(body));
+    const d = await this.wait(sid, 15000);
+    if (!d || !d.size) {
+      liveLog('SD: ' + (d && d.status ? 'empty card listing (' + d.status.slice(0, 120) + ')' : 'no answer to the card listing'));
+      return [];
+    }
+    let items;
+    try { items = (JSON.parse(new TextDecoder().decode(concat(d.parts))).data || {}).list || []; }
+    catch (e) { liveLog('SD: card listing unreadable'); return []; }
+    const out = [];
+    for (const it of items) {
+      const tr = String(it.traceId || '');
+      if (!tr.endsWith('.mp4')) continue;
+      const name = tr.split('/').pop();
+      let ts = Number(it.timestamp) || 0;
+      if (ts > 1e12) ts /= 1000;
+      out.push({ name, paths: sdPaths(it, name, serial), period: Number(it.period) || 0, timestamp: ts });
+    }
+    return out;
+  }
+  // GET one clip; if it stalls part-way, ask again with a Range from where it stopped.
+  async fetch(path, onProgress) {
+    const deadline = Date.now() + SD_CLIP_TIMEOUT_MS;
+    let parts = [], have = 0, total = 0;
+    for (let tries = 0; ; tries++) {
+      const start = have;
+      const sid = this.http('GET', path, ['Accept:*/*', 'Connection:close', 'Host:127.0.0.1:15000', 'Icy-MetaData:1',
+                                          'Range:bytes=' + start + '-']);
+      const d = await this.wait(sid, Math.max(5000, deadline - Date.now()), tries < SD_RESUMES ? SD_RESUME_AFTER_MS : 0,
+                                (got, want) => onProgress && onProgress(start + got, total || want));
+      if (!d || !d.status) return null;
+      const dl = this.declared(d);
+      if (!tries) total = dl;
+      else if (dl === total && start) { liveLog('SD: the camera ignored the range, starting over'); parts = []; have = 0; }
+      else if (dl !== total - start) { liveLog('SD: unexpected length on retry (' + dl + ')'); return null; }
+      let got = concat(d.parts);
+      if (dl) got = got.subarray(0, dl);
+      parts.push(got); have += got.length;
+      if (total && have >= total) return concat(parts).subarray(0, total);
+      if (live !== this.L || tries >= SD_RESUMES || Date.now() >= deadline || !total) return null;
+      liveLog('SD: stalled at ' + mb(have) + ' of ' + mb(total) + ', asking again from there');
+    }
+  }
+}
+
+// Runs once an SD session's link is up: wait for the newest visit's recording to finish, open the
+// card, list recordings around the visits, download each visit's recording and upload it.
+async function runSd(L) {
+  if (L.sdStarted || live !== L) return;
+  L.sdStarted = true;
+  clearTimeout(L.frameTimer); clearTimeout(L.sdKick);
+  const T = L.sdTunnel, visits = L.sdVisits;
+  let saved = 0;
+  try {
+    const times = visits.map(v => v.ts);
+    const waitMs = (Math.max(...times) + SD_SETTLE_S) * 1000 - Date.now();
+    if (waitMs > 0) { setPlayer('connecting', 'Waiting for the camera to finish recording…'); await sleep(waitMs); }
+    setPlayer('connecting', 'Opening the SD card…');
+    await T.prepare();
+    const lo = Math.min(...times) - 60, hi = Math.max(...times) + 120;
+    let segs = await T.list(lo, hi);
+    if (!segs.length && live === L) { await sleep(8000); segs = await T.list(lo, hi); }   // may still be writing
+    liveLog('SD: the card lists ' + segs.length + ' recording(s) around ' + plural(visits.length, 'visit'));
+    const used = new Set();
+    for (const v of visits) {
+      if (live !== L) break;
+      const seg = sdMatch(segs.filter(s => !used.has(s.name)), v.ts);
+      if (!seg || seg.period < 3) {
+        liveLog('SD: no recording on the card for the visit at ' + fmtTime(v.ts * 1000));
+        sdResult.set(v.trace, 'No full clip on the SD card for this visit');
+        continue;
+      }
+      used.add(seg.name);   // two visits in one long recording: it goes to the first (closest) one
+      let data = null;
+      for (const path of seg.paths) {
+        setPlayer('connecting', 'Downloading the full clip…');
+        data = await T.fetch(path, (got, total) =>
+          setPlayer('connecting', 'Downloading the full clip… ' + mb(got) + (total ? ' of ' + mb(total) : '')));
+        if (data || live !== L) break;
+      }
+      if (!data) { liveLog('SD: download failed for ' + seg.name); sdResult.set(v.trace, 'Couldn’t download the full clip'); continue; }
+      liveLog('SD: got ' + seg.name + ' (' + mb(data.length) + ', ' + Math.round(seg.period) + ' s)');
+      setPlayer('connecting', 'Saving the clip…');
+      try {
+        await uploadClip(v.trace, data, v.ts, 'sd');
+        saved++;
+        await load();
+        if ($('dlg').open && current === v.trace) openEvent(v.trace);   // play it where they're looking
+      } catch (err) { liveLog('SD: saving failed: ' + err.message); sdResult.set(v.trace, 'Couldn’t save the full clip'); }
+    }
+  } catch (err) {
+    liveLog('SD: ' + err.message);
+  } finally {
+    liveLog('SD: saved ' + plural(saved, 'full clip'));
+    if (live === L) stopLive();
+    showSdStatus();
+    load();
+    resumeLiveSoon();
+  }
+}
+
+async function uploadClip(trace, bytes, ts, source) {
+  const q = new URLSearchParams({ trace, kind: 'video', ext: 'mp4', ts: String(Math.round(ts)), source });
+  const r = await fetch('/api/recording?' + q, { method: 'POST', body: new Blob([bytes], { type: 'video/mp4' }) });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+}
+
+// Queue a visit for its SD clip. Sessions start once nothing else holds the camera, timed so the
+// camera wakes about when the recording is finished.
+// why: 'view' (the visit is open in the viewer) or 'auto' (Auto-record).
+function queueSd(trace, ts, why) {
+  why = why || 'auto';
+  const q = sdQueue.find(x => x.trace === trace);
+  if (q) { if (why === 'auto') q.why = 'auto'; }
+  else sdQueue.push({ trace, ts, why });
+  drainSd();
+}
+
+// ---- full clips for the viewer
+const sdTried = new Set();     // visits already fetched (or being fetched) since the page loaded
+const sdResult = new Map();    // trace -> why its full clip didn't come (shown in the viewer)
+let resumeLive = false;        // live view was paused for a download; bring it back afterwards
+
+function sdForView(ev) {
+  const local = ev._local || {};
+  dropViewSd(ev.traceId);      // only the visit on screen waits for a download
+  if (!sdDevice || ev._synthetic || local.video_source === 'sd' || sdTried.has(ev.traceId)) return;
+  sdTried.add(ev.traceId);
+  sdResult.delete(ev.traceId);
+  if (live && !live.sd && !rec) { resumeLive = true; stopLive(); }   // the card needs the camera's one session
+  queueSd(ev.traceId, tsOf(ev) / 1000, 'view');
+}
+
+// Forget queued viewer downloads for visits no longer on screen (not yet started).
+function dropViewSd(keep) {
+  sdQueue = sdQueue.filter(q => {
+    if (q.why !== 'view' || q.trace === keep) return true;
+    sdTried.delete(q.trace);   // reopening it tries again
+    return false;
+  });
+}
+
+function sdNote(L, msg, final) {
+  L.sdMsg = msg;
+  if (final) for (const v of L.sdVisits || []) if (!sdResult.has(v.trace)) sdResult.set(v.trace, msg);
+  showSdStatus();
+}
+
+// The pill over the viewer's picture: progress while the open visit's clip is on its way.
+function showSdStatus() {
+  const box = $('dlg-status');
+  let msg = '', done = false;
+  if ($('dlg').open && current) {
+    if (live && live.sd && live.sdVisits.some(v => v.trace === current)) msg = live.sdMsg || 'Getting the full clip from the camera…';
+    else if (sdQueue.some(q => q.trace === current)) msg = 'Getting the full clip from the camera…';
+    else if (sdResult.has(current)) { msg = sdResult.get(current); done = true; }
+  }
+  box.hidden = !msg;
+  box.classList.toggle('done', done);
+  $('dlg-status-text').textContent = msg;
+}
+
+function resumeLiveSoon() {
+  if (!resumeLive || live || sdQueue.length || $('dlg').open || document.visibilityState !== 'visible') return;
+  resumeLive = false;
+  setTimeout(() => { if (!live && !$('dlg').open) startLive(); }, 3000);   // let the server free the session
+}
+function drainSd() {
+  clearTimeout(drainSd.t);
+  if (live || !sdQueue.length) return;
+  const due = (Math.max(...sdQueue.slice(0, SD_BATCH).map(q => q.ts)) + SD_SETTLE_S - 10) * 1000 - Date.now();
+  if (due > 0) { drainSd.t = setTimeout(drainSd, due); return; }
+  startLive(0, null, sdQueue.splice(0, SD_BATCH));
 }
 
 // ---- player controls
@@ -1141,6 +1640,16 @@ $('live-start').onclick = () => startLive();
 $('live-stop').onclick = () => { resumeOnShow = false; stopLive(); setPlayer('idle', 'Live view stopped.'); };
 // Watching an auto-record session: keep it open after the clip.
 $('player').addEventListener('click', () => { if (live) live.keep = true; });
+// Phone sideways: the controls are hidden; a tap shows them for a few seconds.
+let ctlTimer = null;
+$('player').addEventListener('click', (e) => {
+  if (!phoneLandscape.matches) return;
+  const p = $('player');
+  clearTimeout(ctlTimer);
+  if (!e.target.closest('button') && p.classList.contains('show-ctl')) { p.classList.remove('show-ctl'); return; }
+  p.classList.add('show-ctl');
+  ctlTimer = setTimeout(() => p.classList.remove('show-ctl'), 3000);
+});
 $('log-toggle').onclick = () => {
   const w = $('log-wrap');
   w.hidden = !w.hidden;
@@ -1151,7 +1660,7 @@ $('log-toggle').onclick = () => {
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') {
     // An auto-record session or a recording in progress keeps going in the background.
-    if (live && !live.autoTrace && !rec) { resumeOnShow = true; stopLive(); setPlayer('idle', 'Paused while the app was in the background.'); }
+    if (live && !live.autoTrace && !live.sd && !rec) { resumeOnShow = true; stopLive(); setPlayer('idle', 'Paused while the app was in the background.'); }
   } else if (resumeOnShow) {
     resumeOnShow = false;
     startLive();

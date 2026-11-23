@@ -71,8 +71,17 @@ STATIC_DIR = ROOT / "static"
 # the older host and also answered. Override with VICO_API_BASE if needed.
 BASE_URL = os.environ.get("VICO_API_BASE", "https://api-%s.vicoo.tech" % REGION).rstrip("/")
 SERIAL_OVERRIDE = os.environ.get("VICO_SERIAL", "").strip()
+# Optional Home Assistant: with a long-lived access token, each poll pushes the feeder's status
+# to HA as sensor entities (no YAML needed). Never logged.
+HA_URL = os.environ.get("HA_URL", "http://homeassistant.local:8123").strip().rstrip("/")
+HA_TOKEN = os.environ.get("HA_TOKEN", "").strip()
 FFMPEG = shutil.which("ffmpeg")
 MAX_VIDEO_ATTEMPTS = 4
+# The cloud can list a visit before its clip is fully uploaded (seen since Nov 2026), so a clip is
+# saved only once its playlist is complete and unchanged between two polls, or the visit is older
+# than HLS_TRUST_AFTER_S. After HLS_GIVE_UP_S it is left alone (ha-vicohome-bridge does the same).
+HLS_TRUST_AFTER_S = 5 * 60
+HLS_GIVE_UP_S = 45 * 60
 EVENTS_PAGE = 50
 # Browser-side recording of live view (no cloud plan needed): length of auto-recorded clips.
 RECORD_SECONDS = max(5, min(120, int(os.environ.get("RECORD_SECONDS", "20"))))
@@ -312,9 +321,14 @@ class Archive:
                     best = ev
         return {"traceId": best["traceId"], "ts": event_ts(best)} if best else None
 
-    def attach_recording(self, trace, kind, name, ts):
+    def has_sd_clip(self, trace):
+        with self.lock:
+            return ((self.events.get(trace) or {}).get("_local") or {}).get("video_source") == "sd"
+
+    def attach_recording(self, trace, kind, name, ts, source="live"):
         """Record a browser-made clip/still on an event. Manual recordings (trace 'rec-…')
-        get an event of their own; anything else must be an event we already have."""
+        get an event of their own; anything else must be an event we already have.
+        source: "live" (recorded from live view) or "sd" (the camera's own SD-card recording)."""
         with self.lock:
             ev = self.events.get(trace)
             if ev is None:
@@ -335,6 +349,7 @@ class Archive:
                         pass
                 local["video"] = name
                 local["recorded"] = True
+                local["video_source"] = source
                 local.pop("video_deleted", None)
             elif not local.get("image"):
                 local["image"] = name
@@ -374,6 +389,7 @@ class Archive:
                 return None
             files = [local.pop("video")]
             local.pop("recorded", None)
+            local.pop("video_source", None)
             removed = bool(ev.get("_synthetic"))
             if removed:
                 if local.get("image"):
@@ -408,11 +424,23 @@ class Archive:
             attempts = local.get("video_attempts", 0)
             if (FFMPEG and not local.get("video") and ev.get("videoUrl") and not local.get("video_deleted")
                     and attempts < MAX_VIDEO_ATTEMPTS):
-                dest = MEDIA_DIR / (sid + ".mp4")
-                local["video_attempts"] = attempts + 1
-                changed = True
-                if save_hls(ev["videoUrl"], dest):
-                    local["video"] = dest.name
+                age = time.time() - event_ts(ev)
+                complete, size = hls_state(ev["videoUrl"])
+                settled = age > HLS_TRUST_AFTER_S or (
+                    ev.get("receivedAllSlice") is not False and size is not None and size == local.get("playlist_size"))
+                if size is not None and size != local.get("playlist_size"):
+                    local["playlist_size"] = size
+                    changed = True
+                if complete and settled:
+                    dest = MEDIA_DIR / (sid + ".mp4")
+                    local["video_attempts"] = attempts + 1
+                    changed = True
+                    if save_hls(ev["videoUrl"], dest):
+                        local["video"] = dest.name
+                elif age > HLS_GIVE_UP_S:
+                    log.info("clip %s never completed in the cloud; keeping the snapshot", sid)
+                    local["video_attempts"] = MAX_VIDEO_ATTEMPTS
+                    changed = True
 
             if changed:
                 with self.lock:
@@ -427,6 +455,27 @@ def download(url, dest):
         tmp.unlink()
         raise IOError("empty download")
     tmp.replace(dest)
+
+
+def hls_state(url):
+    """(complete, [segments, seconds]) of a clip's HLS playlist. A master playlist is followed to
+    its first variant. Complete means #EXTM3U, at least one segment and #EXT-X-ENDLIST."""
+    def get(u):
+        with urllib.request.urlopen(u, timeout=15) as r:
+            return r.read(1 << 20).decode("utf-8", "replace")
+    try:
+        text = get(url)
+        if "#EXT-X-STREAM-INF" in text:
+            variant = next(l.strip() for l in text.splitlines() if l.strip() and not l.startswith("#"))
+            text = get(urllib.parse.urljoin(url, variant))
+    except (urllib.error.URLError, OSError, ValueError, StopIteration):
+        return False, None
+    segments = [l for l in text.splitlines() if l.strip() and not l.startswith("#")]
+    seconds = 0.0
+    for m in re.finditer(r"^#EXTINF:([0-9.]+)", text, re.M):
+        seconds += float(m.group(1))
+    complete = text.lstrip().startswith("#EXTM3U") and bool(segments) and "#EXT-X-ENDLIST" in text
+    return complete, [len(segments), round(seconds, 1)]
 
 
 def save_hls(url, dest):
@@ -451,15 +500,30 @@ def save_hls(url, dest):
     return True
 
 
-def finish_recording(src, dest):
-    """Turn a browser recording into a seekable MP4 that Safari can play.
+def stream_codecs(path):
+    """(video, audio) codec names of a media file per ffmpeg, e.g. ("hevc", "aac"); "" if none."""
+    try:
+        proc = subprocess.run([FFMPEG, "-hide_banner", "-i", str(path)], capture_output=True, timeout=30)
+    except (OSError, subprocess.TimeoutExpired):
+        return "", ""
+    text = proc.stderr.decode("utf-8", "replace")
+    v = re.search(r"Stream #.*?: Video: (\w+)", text)
+    a = re.search(r"Stream #.*?: Audio: (\w+)", text)
+    return (v.group(1) if v else ""), (a.group(1) if a else "")
 
-    Safari records MP4 (remux, audio to AAC); Chrome/Firefox record WebM (transcode).
+
+def finish_recording(src, dest):
+    """Turn an uploaded clip into a seekable MP4 that Safari can play.
+
+    MP4 (Safari recordings, the camera's SD clips) is remuxed: video copied (HEVC tagged hvc1,
+    which Safari needs), audio copied if AAC, else converted. Chrome/Firefox WebM is transcoded.
     Without ffmpeg, or if it fails, the upload is kept as is. Returns the final path."""
     if FFMPEG:
         tmp = dest.with_name(dest.stem + ".part.mp4")
         if src.suffix == ".mp4":
-            codec = ["-c:v", "copy", "-c:a", "aac"]
+            vcodec, acodec = stream_codecs(src)
+            codec = ["-c:v", "copy"] + (["-tag:v", "hvc1"] if vcodec == "hevc" else [])
+            codec += ["-c:a", "copy" if acodec in ("aac", "") else "aac"]
         else:
             codec = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
                      "-pix_fmt", "yuv420p", "-c:a", "aac"]
@@ -546,6 +610,63 @@ def poll_once(first):
     archive.fetch_media()
 
 
+# ------------------------------------------------------------- Home Assistant
+
+
+ha_last_error = [None]
+
+
+def ha_states():
+    """entity_id -> (state, attributes) for the feeder, from what the poller already has."""
+    dev = archive.device or {}
+    out = {}
+    if isinstance(dev.get("batteryLevel"), (int, float)):
+        out["sensor.bird_feeder_battery"] = (dev["batteryLevel"], {
+            "friendly_name": "Bird feeder battery", "unit_of_measurement": "%", "device_class": "battery",
+            "state_class": "measurement", "charging": dev.get("isCharging") == 1})
+    if "online" in dev:
+        out["binary_sensor.bird_feeder_online"] = ("on" if dev.get("online") == 1 else "off", {
+            "friendly_name": "Bird feeder online", "device_class": "connectivity"})
+    if isinstance(dev.get("signalStrength"), (int, float)):
+        out["sensor.bird_feeder_wifi_signal"] = (dev["signalStrength"], {
+            "friendly_name": "Bird feeder Wi-Fi signal", "unit_of_measurement": "dBm",
+            "device_class": "signal_strength", "state_class": "measurement"})
+    newest = archive.newest()
+    if newest:
+        ts = time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime(newest["ts"]))
+        out["sensor.bird_feeder_last_visit"] = (ts, {
+            "friendly_name": "Bird feeder last visit", "device_class": "timestamp", "icon": "mdi:bird"})
+    midnight = time.mktime(time.localtime()[:3] + (0, 0, 0, 0, 0, -1))
+    with archive.lock:
+        today = sum(1 for ev in archive.events.values()
+                    if not ev.get("_synthetic") and event_ts(ev) >= midnight)
+    out["sensor.bird_feeder_visits_today"] = (today, {
+        "friendly_name": "Bird feeder visits today", "unit_of_measurement": "visits", "icon": "mdi:bird"})
+    return out
+
+
+def push_home_assistant():
+    """Set the feeder's entities in Home Assistant (POST /api/states). Entities set this way
+    vanish when HA restarts and come back on the next poll."""
+    if not HA_TOKEN:
+        return
+    try:
+        for entity, (state, attrs) in ha_states().items():
+            req = urllib.request.Request(
+                "%s/api/states/%s" % (HA_URL, entity), method="POST",
+                data=json.dumps({"state": str(state), "attributes": attrs}).encode(),
+                headers={"Authorization": "Bearer " + HA_TOKEN, "Content-Type": "application/json"})
+            urllib.request.urlopen(req, timeout=10).close()
+        if ha_last_error[0]:
+            log.info("Home Assistant: updating again")
+        ha_last_error[0] = None
+    except (urllib.error.URLError, OSError, ValueError) as err:
+        msg = "token rejected (HTTP 401): check HA_TOKEN" if getattr(err, "code", None) == 401 else str(err)
+        if msg != ha_last_error[0]:   # log each new problem once, not every poll
+            log.warning("Home Assistant update failed: %s", msg)
+        ha_last_error[0] = msg
+
+
 def poller():
     first = True
     while True:
@@ -560,6 +681,7 @@ def poller():
         finally:
             archive.status["polling"] = False
             archive.status["last_poll"] = time.time()
+        push_home_assistant()
         watched = time.time() < watch_until[0]
         wake.wait(min(POLL_SECONDS, WATCH_POLL_SECONDS) if watched else POLL_SECONDS)
         wake.clear()
@@ -695,11 +817,21 @@ RECORDING_EXTS = {"video": ("mp4", "webm"), "image": ("jpg",)}
 
 
 class Handler(SimpleHTTPRequestHandler):
+    # Older Pythons (3.8 on the Pi) don't know .webmanifest.
+    extensions_map = dict(SimpleHTTPRequestHandler.extensions_map, **{".webmanifest": "application/manifest+json"})
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(STATIC_DIR), **kwargs)
 
     def log_message(self, fmt, *args):
         pass
+
+    def end_headers(self):
+        # Static files (the page itself) must be revalidated, or Safari and
+        # home-screen apps keep showing an old index.html after an update.
+        if getattr(self, "_static", False):
+            self.send_header("Cache-Control", "no-cache")
+        super().end_headers()
 
     def send_json(self, obj, code=200):
         body = json.dumps(obj).encode()
@@ -740,6 +872,7 @@ class Handler(SimpleHTTPRequestHandler):
         m = MEDIA_RE.match(path)
         if m:
             return self.send_media(MEDIA_DIR / m.group(1))
+        self._static = True
         return super().do_GET()
 
     # ---- live view relay
@@ -894,7 +1027,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_error(403, "cross-origin upload refused")
         arg = lambda k: (q.get(k) or [""])[0]
         trace, kind, ext = arg("trace"), arg("kind"), arg("ext")
-        if not trace or ext not in RECORDING_EXTS.get(kind, ()):
+        source = arg("source") or "live"
+        if not trace or ext not in RECORDING_EXTS.get(kind, ()) or source not in ("live", "sd"):
             return self.send_error(400, "bad recording parameters")
         try:
             length = int(self.headers.get("Content-Length", "0"))
@@ -907,6 +1041,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_error(404, "unknown event")
         if kind == "image" and not trace.startswith("rec-"):
             return self.send_error(400, "camera events keep their own snapshot")
+        if kind == "video" and source == "live" and archive.has_sd_clip(trace):
+            return self.send_error(409, "this visit already has the full clip from the SD card")
         sid = safe_id(trace)
         upload = MEDIA_DIR / ("%s.upload.%s" % (sid, ext))
         remaining = length
@@ -921,14 +1057,14 @@ class Handler(SimpleHTTPRequestHandler):
             upload.unlink()
             return self.send_error(400, "upload cut short")
         if kind == "video":
-            final = finish_recording(upload, MEDIA_DIR / (sid + "-rec.mp4"))
+            final = finish_recording(upload, MEDIA_DIR / (sid + ("-sd.mp4" if source == "sd" else "-rec.mp4")))
         else:
             final = MEDIA_DIR / (sid + ".jpg")
             upload.replace(final)
-        if not archive.attach_recording(trace, kind, final.name, ts):
+        if not archive.attach_recording(trace, kind, final.name, ts, source):
             final.unlink()
             return self.send_error(404, "unknown event")
-        log.info("saved recording %s (%d KB)", final.name, length // 1024)
+        log.info("saved %s %s (%d KB)", "SD clip" if source == "sd" else "recording", final.name, length // 1024)
         return self.send_json({"ok": True, "file": final.name})
 
     def send_media(self, file):

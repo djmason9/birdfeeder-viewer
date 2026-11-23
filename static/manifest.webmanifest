@@ -1,0 +1,15 @@
+{
+  "name": "Bird Feeder",
+  "short_name": "Feeder",
+  "description": "Live view and visits from the bird feeder camera",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0f120f",
+  "theme_color": "#0f120f",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }
+  ]
+}
