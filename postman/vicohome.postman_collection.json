@@ -1,0 +1,199 @@
+{
+  "info": {
+    "name": "VicoHome (bird feeder)",
+    "description": "Unofficial VicoHome cloud API (api-<region>.vicoo.tech, as used by the iOS app 4.7.0; Authorization: Bearer <token>). Needs an environment with: region (e.g. us), country (e.g. US), email, password. Put email/password in the CURRENT value column only, so they are not synced. Login stores {{token}}; List events stores {{serial}}. Note: each login invalidates the phone app's session.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Login",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const r = pm.response.json();",
+              "pm.test('result == 0', () => pm.expect(r.result).to.eql(0));",
+              "if (r.result === 0 && r.data && r.data.token) {",
+              "  pm.environment.set('token', r.data.token.token);",
+              "  console.log('token saved to environment');",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\",\n  \"loginType\": 0\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "https://api-{{region}}.vicoo.tech/account/login"
+      }
+    },
+    {
+      "name": "2. List events (last 6h)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const end = Math.floor(Date.now() / 1000);",
+              "const hours = Number(pm.environment.get('hours') || 6);",
+              "pm.variables.set('endTs', String(end));",
+              "pm.variables.set('startTs', String(end - hours * 3600));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const r = pm.response.json();",
+              "pm.test('result == 0', () => pm.expect(r.result).to.eql(0));",
+              "const list = (r.data && r.data.list) || [];",
+              "console.log('total:', r.data && r.data.total);",
+              "console.log('events:', list.length);",
+              "const ev = list.find(e => e.serialNumber);",
+              "if (ev) {",
+              "  pm.environment.set('serial', ev.serialNumber);",
+              "  console.log('serial saved to environment');",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"startTimestamp\": {{startTs}},\n  \"endTimestamp\": {{endTs}},\n  \"from\": 0,\n  \"to\": 50,\n  \"marked\": -1,\n  \"missing\": -1,\n  \"tags\": [],\n  \"doorbellTags\": [],\n  \"language\": \"en\",\n  \"countryNo\": \"{{country}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "https://api-{{region}}.vicoo.tech/library/newselectlibrary"
+      }
+    },
+    {
+      "name": "2b. List devices",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const r = pm.response.json();",
+              "pm.test('result == 0', () => pm.expect(r.result).to.eql(0));",
+              "const d = ((r.data && r.data.deviceList) || [])[0];",
+              "if (d) { pm.environment.set('serial', d.serialNumber); console.log('serial saved to environment'); }"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"list\": [],\n  \"supportBindFlow\": 0,\n  \"language\": \"en\",\n  \"countryNo\": \"{{country}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "https://api-{{region}}.vicoo.tech/device/listuserdevices/v4"
+      }
+    },
+    {
+      "name": "3. Device details",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const r = pm.response.json();",
+              "pm.test('result == 0', () => pm.expect(r.result).to.eql(0));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"serialNumber\": \"{{serial}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "https://api-{{region}}.vicoo.tech/device/selectsingledevice"
+      }
+    }
+  ]
+}

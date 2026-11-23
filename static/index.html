@@ -1,0 +1,1170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f4f2ec" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f120f" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Feeder">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
+<title>Bird Feeder</title>
+<style>
+  :root {
+    --bg: #f4f2ec; --surface: #ffffff; --surface-2: #ebe8df; --text: #1c211d; --muted: #6a7068;
+    --border: #e2ded3; --accent: #2f6b4f;
+    --accent-text: #ffffff; --ok: #2f8f5b; --warn: #b7791f; --bad: #c0392b; --live: #e5484d;
+    --shadow: 0 1px 2px rgba(0,0,0,.05), 0 8px 24px rgba(0,0,0,.06);
+    --radius: 18px; --gutter: max(16px, env(safe-area-inset-left));
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f120f; --surface: #181c18; --surface-2: #232823; --text: #e9ece7; --muted: #9aa198;
+      --border: #2c322c; --accent: #74c69d; --accent-text: #0c1a12; --shadow: 0 1px 2px rgba(0,0,0,.5);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f120f; --surface: #181c18; --surface-2: #232823; --text: #e9ece7; --muted: #9aa198;
+    --border: #2c322c; --accent: #74c69d; --accent-text: #0c1a12; --shadow: 0 1px 2px rgba(0,0,0,.5);
+  }
+
+  /* ---- base (phone first) */
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  [hidden] { display: none !important; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  body:has(dialog[open]) { overflow: hidden; }
+  svg.i { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+  svg.i.fill { fill: currentColor; stroke: none; }
+
+  button, .btn {
+    font: inherit; font-size: 15px; min-height: 44px; padding: 0 16px; border-radius: 12px;
+    border: 1px solid var(--border); background: var(--surface); color: var(--text);
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    text-decoration: none; cursor: pointer; touch-action: manipulation; user-select: none;
+  }
+  button:active, .btn:active { transform: scale(.97); }
+  button:disabled { opacity: .4; cursor: default; transform: none; }
+  button:focus-visible, .btn:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .icon-btn { width: 44px; padding: 0; border-radius: 50%; flex: none; }
+  .toggle { flex: none; padding: 0 12px; border-radius: 999px; font-size: 14px; color: var(--muted); }
+  .toggle[aria-pressed="true"] { border-color: var(--live); color: var(--live); font-weight: 600; }
+  .toggle[aria-pressed="true"] .dot { background: var(--live); animation: pulse 2s ease-in-out infinite; }
+  .glass.rec { background: var(--live); font-variant-numeric: tabular-nums; }
+  .link { border: none; background: none; min-height: 32px; padding: 0 4px; color: var(--muted); font-size: 13px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+  .dot.ok { background: var(--ok); } .dot.bad { background: var(--bad); } .dot.warn { background: var(--warn); }
+  .muted { color: var(--muted); }
+
+  /* ---- header */
+  header {
+    position: sticky; top: 0; z-index: 10;
+    background: color-mix(in srgb, var(--bg) 85%, transparent);
+    -webkit-backdrop-filter: saturate(1.4) blur(16px); backdrop-filter: saturate(1.4) blur(16px);
+    padding-top: env(safe-area-inset-top);
+  }
+  .bar { max-width: 1280px; margin: 0 auto; display: flex; align-items: center; gap: 10px; padding: 8px var(--gutter); }
+  .title { flex: 1; min-width: 0; }
+  h1 { font-size: 22px; line-height: 1.15; margin: 0; letter-spacing: -.02em; font-weight: 700; }
+  .sub { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+  .sub span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hstats { display: flex; gap: 10px; align-items: center; color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+  .hstat { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+  .hstat.warn { color: var(--warn); } .hstat.bad { color: var(--bad); }
+  #refresh.busy svg { animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ---- layout */
+  .layout { max-width: 1280px; margin: 0 auto; display: grid; gap: 20px; padding-bottom: 32px; }
+  .stage { display: grid; gap: 14px; align-content: start; }
+  .pad { padding-left: var(--gutter); padding-right: var(--gutter); }
+
+  /* ---- live player (edge to edge on phones) */
+  .player { position: relative; aspect-ratio: 16/9; background: #000; overflow: hidden; color: #fff; }
+  .player video, .player .poster { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .player video { object-fit: contain; background: #000; opacity: 0; transition: opacity .4s; }
+  .player .poster { filter: blur(6px) brightness(.45); transform: scale(1.08); }
+  .player .poster:not([src]) { display: none; }
+  .player[data-state="live"] video { opacity: 1; }
+  .player[data-state="live"] .poster { display: none; }
+  .ov { position: absolute; left: 0; right: 0; display: flex; align-items: center; gap: 8px; padding: 10px; }
+  .ov-top { top: 0; background: linear-gradient(rgba(0,0,0,.45), transparent); }
+  .ov-bottom { bottom: 0; justify-content: flex-end; background: linear-gradient(transparent, rgba(0,0,0,.45)); }
+  .ov-top, .ov-bottom { opacity: 0; pointer-events: none; transition: opacity .25s; }
+  .player[data-state="live"] .ov-top, .player[data-state="live"] .ov-bottom { opacity: 1; pointer-events: auto; }
+  .live-badge {
+    display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 6px;
+    background: var(--live); color: #fff; font-size: 12px; font-weight: 700; letter-spacing: .06em;
+    font-variant-numeric: tabular-nums;
+  }
+  .live-badge .dot { background: #fff; width: 6px; height: 6px; animation: pulse 1.6s ease-in-out infinite; }
+  .live-badge .t { font-weight: 500; letter-spacing: 0; opacity: .9; }
+  @keyframes pulse { 50% { opacity: .3; } }
+  .spacer { flex: 1; }
+  .glass {
+    min-height: 40px; height: 40px; border-radius: 999px; padding: 0 12px; color: #fff; border: none;
+    background: rgba(20,20,20,.45); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  }
+  .glass.round { width: 40px; padding: 0; }
+  .ov-center {
+    position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 12px; text-align: center; padding: 16px;
+  }
+  .player[data-state="live"] .ov-center { display: none; }
+  .live-msg { font-size: 14px; opacity: .9; max-width: 32ch; text-shadow: 0 1px 4px rgba(0,0,0,.6); }
+  .live-msg:empty { display: none; }
+  .spinner { width: 34px; height: 34px; border-radius: 50%; border: 3px solid rgba(255,255,255,.25); border-top-color: #fff; animation: spin .9s linear infinite; }
+  .play {
+    min-height: 52px; padding: 0 22px; border-radius: 999px; border: none; font-weight: 600; font-size: 16px;
+    background: rgba(255,255,255,.95); color: #111;
+  }
+  .player:not([data-state="connecting"]) .spinner { display: none; }
+  .player[data-state="connecting"] .play { display: none; }
+  .player-foot { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+  .player-foot .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  pre {
+    background: var(--surface-2); padding: 12px; border-radius: 12px; overflow: auto; margin: 0;
+    font-size: 11px; max-height: 260px; white-space: pre-wrap; word-break: break-all;
+  }
+
+  /* ---- cards */
+  .card { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px; }
+  .today-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; margin-bottom: 14px; }
+  .kicker { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+  .big { font-size: 40px; font-weight: 700; line-height: 1; letter-spacing: -.03em; font-variant-numeric: tabular-nums; margin-top: 4px; }
+  .big small { font-size: 15px; font-weight: 500; color: var(--muted); letter-spacing: 0; margin-left: 4px; }
+  .today-meta { text-align: right; font-size: 13px; color: var(--muted); line-height: 1.5; }
+  .today-meta b { color: var(--text); font-weight: 600; }
+  .hours { display: flex; align-items: flex-end; gap: 2px; height: 64px; border-bottom: 1px solid var(--border); }
+  .hour { flex: 1; height: 100%; display: flex; align-items: flex-end; cursor: pointer; padding: 0; border: none; background: none; min-height: 0; border-radius: 0; }
+  .hour i { display: block; width: 100%; background: var(--accent); border-radius: 4px 4px 0 0; }
+  .hour.future { cursor: default; }
+  .hour.sel i { background: color-mix(in srgb, var(--accent) 70%, var(--text)); }
+  .axis { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .readout { font-size: 13px; color: var(--muted); margin-top: 8px; min-height: 1.45em; }
+  .readout b { color: var(--text); font-weight: 600; }
+
+  /* ---- visits */
+  .section-head { display: flex; align-items: baseline; justify-content: space-between; margin: 4px 0 10px; }
+  h2 { font-size: 20px; margin: 0; letter-spacing: -.01em; }
+  .error {
+    margin: 0 0 12px; padding: 10px 14px; border-radius: 12px; font-size: 14px;
+    background: color-mix(in srgb, var(--bad) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--bad) 35%, transparent);
+  }
+  .day { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 10px; overflow: hidden; }
+  .day summary {
+    list-style: none; display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 6px 14px 6px 16px; cursor: pointer;
+  }
+  .day summary::-webkit-details-marker { display: none; }
+  .day-name { font-weight: 600; }
+  .day-count { margin-left: auto; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .day summary .chev { color: var(--muted); transition: transform .2s; }
+  .day[open] summary .chev { transform: rotate(90deg); }
+  .peek { display: flex; }
+  .peek img { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; border: 2px solid var(--surface); margin-left: -8px; background: var(--surface-2); }
+  .peek img:first-child { margin-left: 0; }
+  .day[open] .peek { display: none; }
+  .tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 0 4px 4px; }
+  .tile { position: relative; display: block; padding: 0; min-height: 0; border: none; border-radius: 10px; overflow: hidden; aspect-ratio: 4/3; background: var(--surface-2); }
+  .tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .tile .t, .tile .n {
+    position: absolute; font-size: 11px; font-weight: 600; color: #fff; padding: 1px 6px; border-radius: 6px;
+    background: rgba(0,0,0,.55); font-variant-numeric: tabular-nums; display: inline-flex; align-items: center; gap: 3px;
+  }
+  .tile .t { left: 4px; bottom: 4px; }
+  .tile .n { right: 4px; top: 4px; }
+  .tile .n svg.i { width: 11px; height: 11px; }
+  .empty { text-align: center; color: var(--muted); padding: 40px 16px; }
+
+  /* ---- viewer dialog: full-screen sheet on phones */
+  dialog {
+    margin: 0; padding: 0; border: none; width: 100%; max-width: 100%; height: 100%; max-height: 100%;
+    background: var(--surface); color: var(--text);
+  }
+  dialog[open] { display: flex; flex-direction: column; }
+  dialog::backdrop { background: rgba(0,0,0,.6); }
+  .dlg-top { display: flex; align-items: center; gap: 8px; padding: calc(8px + env(safe-area-inset-top)) 8px 8px 16px; }
+  .dlg-top .grow { flex: 1; min-width: 0; }
+  .dlg-top .label { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dlg-top .time { color: var(--muted); font-size: 13px; }
+  .media { background: #000; aspect-ratio: 16/9; flex: none; display: flex; align-items: center; justify-content: center; }
+  .media video, .media img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .strip { display: flex; gap: 6px; overflow-x: auto; padding: 10px 16px 0; scrollbar-width: none; flex: none; }
+  .strip::-webkit-scrollbar { display: none; }
+  .strip button { flex: none; width: 72px; height: 48px; min-height: 0; padding: 0; border-radius: 8px; overflow: hidden; border: 2px solid transparent; }
+  .strip button.on { border-color: var(--accent); }
+  .strip img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .dlg-body { flex: 1; overflow: auto; padding: 12px 16px; }
+  .story { color: var(--muted); font-size: 14px; margin-bottom: 8px; }
+  details.raw summary { cursor: pointer; color: var(--muted); font-size: 13px; min-height: 36px; display: flex; align-items: center; }
+  .actions { display: flex; gap: 8px; border-top: 1px solid var(--border); padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); }
+  .actions > * { flex: 1; }
+  .del { color: var(--bad); }
+
+  /* ---- larger screens */
+  @media (min-width: 640px) {
+    .layout { padding: 4px var(--gutter) 48px; }
+    .pad { padding-left: 0; padding-right: 0; }
+    .player { border-radius: var(--radius); box-shadow: var(--shadow); }
+    .tiles { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 6px; padding: 0 6px 6px; }
+  }
+  @media (min-width: 720px) {
+    dialog {
+      margin: auto; width: min(960px, calc(100vw - 48px)); height: auto; max-height: calc(100dvh - 48px);
+      border: 1px solid var(--border); border-radius: 18px;
+    }
+    .dlg-top { padding-top: 8px; }
+    .actions { padding-bottom: 10px; justify-content: flex-end; }
+    .actions > * { flex: none; }
+  }
+  @media (min-width: 1000px) {
+    .layout { grid-template-columns: minmax(0, 1.55fr) minmax(340px, 1fr); gap: 28px; align-items: start; }
+    .stage { position: sticky; top: calc(72px + env(safe-area-inset-top)); }
+  }
+  @media (hover: hover) {
+    .tile:hover img { filter: brightness(1.08); }
+    .day summary:hover .day-name { color: var(--accent); }
+    .hour:not(.future):hover i { background: color-mix(in srgb, var(--accent) 70%, var(--text)); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></symbol>
+  <symbol id="i-muted" viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="m22 9-6 6M16 9l6 6"/></symbol>
+  <symbol id="i-sound" viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></symbol>
+  <symbol id="i-full" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></symbol>
+  <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+  <symbol id="i-wifi" viewBox="0 0 24 24"><path d="M2 8.5a15 15 0 0 1 20 0M5 12a10 10 0 0 1 14 0M8.5 15.5a5 5 0 0 1 7 0"/><path d="M12 19h.01"/></symbol>
+  <symbol id="i-photos" viewBox="0 0 24 24"><rect x="3" y="7" width="14" height="13" rx="2"/><path d="M7 4h12a2 2 0 0 1 2 2v10"/></symbol>
+</svg>
+
+<header>
+  <div class="bar">
+    <div class="title">
+      <h1 id="title">Bird Feeder</h1>
+      <div class="sub"><span class="dot" id="sub-dot"></span><span id="sub-text">Connecting…</span></div>
+    </div>
+    <div class="hstats" id="hstats"></div>
+    <button class="toggle" id="auto-btn" aria-pressed="false"
+      title="Record a clip from live view whenever a new visit comes in. Keep this page open."><span class="dot"></span>Auto-record</button>
+    <button class="icon-btn" id="refresh" aria-label="Check for new visits" title="Check for new visits"><svg class="i"><use href="#i-refresh"/></svg></button>
+  </div>
+</header>
+
+<div class="layout">
+  <section class="stage" aria-label="Live view and today">
+    <div class="player" id="player" data-state="idle">
+      <img class="poster" id="poster" alt="">
+      <video id="live-video" autoplay muted playsinline></video>
+      <div class="ov ov-top">
+        <span class="live-badge"><span class="dot"></span>LIVE <span class="t" id="live-time">0:00</span></span>
+        <span class="spacer"></span>
+        <button class="glass round" id="mute-btn" aria-label="Turn sound on"><svg class="i"><use href="#i-muted"/></svg></button>
+        <button class="glass round" id="fs-btn" aria-label="Full screen"><svg class="i"><use href="#i-full"/></svg></button>
+      </div>
+      <div class="ov-center">
+        <div class="spinner"></div>
+        <div class="live-msg" id="live-msg" aria-live="polite"></div>
+        <button class="play" id="live-start"><svg class="i fill"><use href="#i-play"/></svg>Watch live</button>
+      </div>
+      <div class="ov ov-bottom">
+        <button class="glass" id="rec-btn" disabled>⏺ Record</button>
+        <button class="glass" id="live-stop"><svg class="i fill"><use href="#i-stop"/></svg>Stop</button>
+      </div>
+    </div>
+    <div class="player-foot pad">
+      <span class="dot" id="live-dot"></span>
+      <span class="grow" id="live-foot"></span>
+      <button class="link" id="log-toggle" aria-expanded="false">Log</button>
+    </div>
+    <div class="pad" id="log-wrap" hidden><pre id="live-log"></pre></div>
+
+    <div class="pad">
+      <section class="card" aria-labelledby="today-kicker">
+        <div class="today-head">
+          <div>
+            <div class="kicker" id="today-kicker">Today</div>
+            <div class="big" id="today-count">0<small>visits</small></div>
+          </div>
+          <div class="today-meta" id="today-meta"></div>
+        </div>
+        <div class="hours" id="hours" role="group" aria-label="Visits per hour today"></div>
+        <div class="axis" aria-hidden="true"><span>12a</span><span>6a</span><span>12p</span><span>6p</span><span>12a</span></div>
+        <div class="readout" id="readout"></div>
+      </section>
+    </div>
+  </section>
+
+  <section class="pad" aria-labelledby="visits-h">
+    <div class="section-head"><h2 id="visits-h">Visits</h2><span class="muted" id="visit-total"></span></div>
+    <div id="error" class="error" role="alert" hidden></div>
+    <div id="list"></div>
+  </section>
+</div>
+
+<dialog id="dlg" aria-labelledby="dlg-label">
+  <div class="dlg-top">
+    <div class="grow">
+      <div class="label" id="dlg-label"></div>
+      <div class="time" id="dlg-time"></div>
+    </div>
+    <button class="icon-btn" id="dlg-close" aria-label="Close"><svg class="i"><use href="#i-close"/></svg></button>
+  </div>
+  <div class="media" id="dlg-media"></div>
+  <div class="strip" id="dlg-strip" hidden></div>
+  <div class="dlg-body">
+    <div class="story" id="dlg-story" hidden></div>
+    <details class="raw"><summary>Raw event data</summary><pre id="dlg-raw"></pre></details>
+  </div>
+  <div class="actions">
+    <button id="dlg-prev" aria-label="Older visit">‹ Older</button>
+    <a class="btn" id="dlg-download" download>Download</a>
+    <button class="del" id="dlg-delete" hidden>Delete</button>
+    <button id="dlg-next" aria-label="Newer visit">Newer ›</button>
+  </div>
+</dialog>
+
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+const el = (tag, cls, text) => {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text !== undefined) n.textContent = text;
+  return n;
+};
+const icon = (name, cls) => {
+  const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  s.setAttribute('class', 'i' + (cls ? ' ' + cls : ''));
+  const u = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+  u.setAttribute('href', '#i-' + name);
+  s.appendChild(u);
+  return s;
+};
+
+const GROUP_GAP_MS = 10 * 60 * 1000;   // shots closer together than this form one visit group
+let events = [];          // newest first, as served by /api/events
+let groupOf = new Map();  // traceId -> events in the same group (newest first)
+let current = null;       // traceId shown in the viewer
+let hls = null;
+const dayOpen = new Map(); // day key -> open/closed as chosen by the user
+
+const tsOf = (ev) => { const n = Number(ev.timestamp || 0); return n > 1e12 ? n : n * 1000; };
+const fmtTime = (ms) => new Date(ms).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+const dayKey = (d) => d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate();
+const plural = (n, word) => n + ' ' + word + (n === 1 ? '' : 's');
+
+// Field names confirmed from the VicoHome app's traffic (Nov 2026).
+// birdName/birdStory are null unless the account has bird AI (VicoHome's paid plan).
+function findLabel(ev) {
+  if (ev._synthetic) return 'Live recording';
+  if (ev.birdName) return ev.birdName;
+  if (ev.summaryDescription) return ev.summaryDescription;
+  if (typeof ev.tags === 'string' && ev.tags.trim()) return ev.tags.split(',').map(s => s.trim()).filter(Boolean).join(', ');
+  return 'Visit';
+}
+
+function imgSrc(ev) {
+  return ev._local && ev._local.image ? '/media/' + ev._local.image : (ev.imageUrl || '');
+}
+
+function ago(ms) {
+  const s = Math.round((Date.now() - ms) / 1000);
+  if (s < 60) return 'just now';
+  if (s < 3600) return Math.round(s / 60) + 'm ago';
+  if (s < 86400) return Math.round(s / 3600) + 'h ago';
+  return Math.round(s / 86400) + 'd ago';
+}
+
+function hourLabel(h) {
+  const f = (x) => { const hh = x % 24; return (hh % 12 || 12) + (hh < 12 ? ' AM' : ' PM'); };
+  return f(h) + '–' + f(h + 1);
+}
+
+function dayLabel(d) {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const diff = Math.round((today - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 86400000);
+  if (diff === 0) return 'Today';
+  if (diff === 1) return 'Yesterday';
+  return d.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+}
+
+function showError(msg) {
+  const e = $('error');
+  e.hidden = !msg;
+  e.textContent = msg;
+}
+
+// ---------------------------------------------------------------- Status
+function batteryIcon(level) {
+  const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  s.setAttribute('class', 'i'); s.setAttribute('viewBox', '0 0 24 24');
+  const w = (13 * Math.max(0, Math.min(100, level)) / 100).toFixed(1);
+  s.innerHTML = '<rect x="2" y="7" width="18" height="10" rx="2.5"/><path d="M22 11v2"/>' +
+    '<rect x="4.5" y="9.5" height="5" rx="1" fill="currentColor" stroke="none" width="' + w + '"/>';
+  return s;
+}
+
+function renderStatus(st) {
+  const dev = st.device || {};
+  const s = st.status || {};
+  const known = dev.online !== undefined;
+  $('title').textContent = dev.deviceName || 'Bird Feeder';
+  const checked = s.polling ? 'checking…' : (s.last_poll ? 'checked ' + ago(s.last_poll * 1000) : 'starting…');
+  $('sub-dot').className = 'dot ' + (s.last_error ? 'bad' : !known ? '' : dev.online === 1 ? 'ok' : 'bad');
+  $('sub-text').textContent = [known ? (dev.online === 1 ? 'Online' : 'Offline') : null, checked].filter(Boolean).join(' · ');
+
+  const box = $('hstats');
+  box.replaceChildren();
+  if (typeof dev.signalStrength === 'number') {
+    const q = dev.signalStrength >= -60 ? 'strong' : dev.signalStrength >= -70 ? 'good' : 'weak';
+    const w = el('span', 'hstat' + (q === 'weak' ? ' warn' : ''));
+    w.title = 'Wi-Fi ' + q + ' (' + dev.signalStrength + ' dBm)';
+    w.setAttribute('role', 'img');
+    w.setAttribute('aria-label', w.title);
+    w.appendChild(icon('wifi'));
+    box.appendChild(w);
+  }
+  if (typeof dev.batteryLevel === 'number') {
+    const b = el('span', 'hstat' + (dev.batteryLevel <= 15 ? ' bad' : dev.batteryLevel <= 30 ? ' warn' : ''));
+    b.title = 'Battery ' + dev.batteryLevel + '%' + (dev.isCharging === 1 ? ', charging' : '');
+    b.appendChild(batteryIcon(dev.batteryLevel));
+    b.appendChild(document.createTextNode(dev.batteryLevel + '%' + (dev.isCharging === 1 ? '⚡' : '')));
+    box.appendChild(b);
+  }
+  $('visit-total').textContent = plural(st.event_count || 0, 'visit') + ' saved' + (st.ffmpeg ? '' : ' · clips off (no ffmpeg)');
+  showError(s.last_error ? 'Last check failed: ' + s.last_error : '');
+}
+
+// ---------------------------------------------------------------- Today card
+function renderToday() {
+  const start = new Date(); start.setHours(0, 0, 0, 0);
+  const t0 = start.getTime();
+  const nowHour = new Date().getHours();
+  const counts = new Array(24).fill(0);
+  let todayN = 0;
+  for (const ev of events) {
+    if (ev._synthetic) continue;   // manual recordings aren't camera visits
+    const t = tsOf(ev);
+    if (t >= t0 && t < t0 + 86400000) { counts[new Date(t).getHours()]++; todayN++; }
+  }
+  $('today-count').replaceChildren(document.createTextNode(String(todayN)), el('small', '', todayN === 1 ? 'visit' : 'visits'));
+
+  const max = Math.max(...counts);
+  const busiest = counts.indexOf(max);
+  const meta = $('today-meta');
+  meta.replaceChildren();
+  if (events.length) meta.append('Last visit ', el('b', '', ago(tsOf(events[0]))));
+  if (max > 0) meta.append(el('br'), 'Busiest ', el('b', '', hourLabel(busiest)));
+
+  const box = $('hours');
+  const readout = (h) => {
+    box.querySelectorAll('.hour').forEach((b, i) => b.classList.toggle('sel', i === h));
+    const r = $('readout');
+    if (h < 0) { r.textContent = todayN ? '' : 'No visits yet today.'; return; }
+    r.replaceChildren(el('b', '', hourLabel(h)), ' · ' + plural(counts[h], 'visit'));
+  };
+  box.replaceChildren();
+  counts.forEach((n, h) => {
+    const b = el('button', 'hour' + (h > nowHour ? ' future' : ''));
+    b.type = 'button';
+    b.setAttribute('aria-label', hourLabel(h) + ': ' + plural(n, 'visit'));
+    const bar = el('i');
+    bar.style.height = n ? Math.max(8, Math.round(n / max * 100)) + '%' : '0';
+    b.appendChild(bar);
+    if (h <= nowHour) {
+      b.onmouseenter = b.onfocus = () => readout(h);
+      b.onclick = () => { pickedHour = h; readout(h); };
+    } else b.tabIndex = -1;
+    box.appendChild(b);
+  });
+  const resting = () => (pickedHour !== null && pickedHour <= nowHour) ? pickedHour : (max > 0 ? busiest : -1);
+  box.onmouseleave = () => readout(resting());
+  readout(resting());
+}
+let pickedHour = null;   // hour bar the user tapped; survives the 15 s refresh
+
+// ---------------------------------------------------------------- Visits list
+// Groups consecutive shots (newest first) taken within GROUP_GAP_MS of each other on the same day.
+function groupEvents(list) {
+  const groups = [];
+  let g = null;
+  for (const ev of list) {
+    const t = tsOf(ev);
+    const day = dayKey(new Date(t));
+    if (g && g.last - t <= GROUP_GAP_MS && day === g.day) { g.items.push(ev); g.last = t; }
+    else { g = { items: [ev], last: t, day }; groups.push(g); }
+  }
+  return groups;
+}
+
+function renderList() {
+  const list = $('list');
+  list.replaceChildren();
+  groupOf = new Map();
+  if (!events.length) {
+    list.appendChild(el('div', 'empty', 'No visits yet. Wave at the camera (or wait for a bird), then tap ↻.'));
+    return;
+  }
+  const days = [];
+  for (const g of groupEvents(events)) {
+    for (const ev of g.items) groupOf.set(ev.traceId, g.items);
+    const last = days[days.length - 1];
+    if (last && last.key === g.day) last.groups.push(g);
+    else days.push({ key: g.day, date: new Date(tsOf(g.items[0])), groups: [g] });
+  }
+  days.forEach((day, idx) => {
+    const n = day.groups.reduce((a, g) => a + g.items.length, 0);
+    const det = el('details', 'day');
+    det.open = dayOpen.has(day.key) ? dayOpen.get(day.key) : idx < 2;   // today & yesterday open
+    det.addEventListener('toggle', () => dayOpen.set(day.key, det.open));
+    const sum = el('summary');
+    sum.appendChild(el('span', 'day-name', dayLabel(day.date)));
+    const peek = el('span', 'peek');
+    for (const g of day.groups.slice(0, 4)) {
+      const src = imgSrc(g.items[0]);
+      if (src) { const im = el('img'); im.src = src; im.alt = ''; im.loading = 'lazy'; peek.appendChild(im); }
+    }
+    sum.append(peek, el('span', 'day-count', plural(n, 'visit')), icon('chev', 'chev'));
+    det.appendChild(sum);
+
+    const tiles = el('div', 'tiles');
+    for (const g of day.groups) {
+      const cover = g.items[0];
+      const first = tsOf(g.items[g.items.length - 1]);
+      const span = g.items.length > 1 ? fmtTime(first) + '–' + fmtTime(tsOf(cover)) : fmtTime(tsOf(cover));
+      const t = el('button', 'tile');
+      t.setAttribute('aria-label', plural(g.items.length, 'visit') + ', ' + span);
+      t.title = span;
+      // Open the group's clip if it has one (it may not be the newest shot), else the newest shot.
+      const clipEv = g.items.find(e => e._local && e._local.video);
+      t.onclick = () => openEvent((clipEv || cover).traceId);
+      const src = imgSrc(cover);
+      if (src) { const im = el('img'); im.loading = 'lazy'; im.decoding = 'async'; im.src = src; im.alt = ''; t.appendChild(im); }
+      t.appendChild(el('span', 't', fmtTime(first)));
+      const hasClip = g.items.some(e => e._local && e._local.video);
+      if (g.items.length > 1 || hasClip) {
+        const badge = el('span', 'n');
+        if (hasClip) badge.appendChild(icon('play', 'fill'));
+        if (g.items.length > 1) badge.append(icon('photos'), String(g.items.length));
+        t.appendChild(badge);
+      }
+      tiles.appendChild(t);
+    }
+    det.appendChild(tiles);
+    list.appendChild(det);
+  });
+}
+
+// ---------------------------------------------------------------- Viewer
+function stopMedia() {
+  const v = $('dlg-media').querySelector('video');
+  if (v) v.pause();
+  if (hls) { hls.destroy(); hls = null; }
+}
+
+function openEvent(traceId) {
+  const i = events.findIndex(e => e.traceId === traceId);
+  if (i < 0) return;
+  const ev = events[i];
+  current = traceId;
+  stopMedia();
+  const box = $('dlg-media');
+  box.replaceChildren();
+  const local = ev._local || {};
+  let dl = '';
+  if (local.video || (ev.videoUrl && !local.video_deleted)) {
+    const v = el('video');
+    v.controls = true; v.autoplay = true; v.playsInline = true; v.poster = imgSrc(ev);
+    box.appendChild(v);
+    if (local.video) {
+      v.src = '/media/' + local.video; dl = v.src;
+    } else if (v.canPlayType('application/vnd.apple.mpegurl')) {
+      v.src = ev.videoUrl;
+    } else if (window.Hls && Hls.isSupported()) {
+      hls = new Hls(); hls.loadSource(ev.videoUrl); hls.attachMedia(v);
+    }
+  } else if (imgSrc(ev)) {
+    const img = el('img'); img.src = imgSrc(ev); img.alt = findLabel(ev); box.appendChild(img);
+    dl = local.image ? '/media/' + local.image : '';
+  }
+  $('dlg-delete').hidden = !local.video;
+  $('dlg-delete').title = ev._synthetic ? 'Delete this recording' : 'Delete the clip (the snapshot stays)';
+  const a = $('dlg-download');
+  a.hidden = !dl;
+  if (dl) a.href = dl;
+
+  // Filmstrip of the shots in the same visit group.
+  const grp = groupOf.get(traceId) || [ev];
+  const strip = $('dlg-strip');
+  strip.replaceChildren();
+  strip.hidden = grp.length < 2;
+  if (grp.length > 1) {
+    for (const g of grp) {
+      const b = el('button', g.traceId === traceId ? 'on' : '');
+      b.setAttribute('aria-label', fmtTime(tsOf(g)));
+      const src = imgSrc(g);
+      if (src) { const im = el('img'); im.src = src; im.alt = ''; b.appendChild(im); }
+      b.onclick = () => openEvent(g.traceId);
+      strip.appendChild(b);
+    }
+  }
+
+  const pos = grp.length > 1 ? ' · ' + (grp.indexOf(ev) + 1) + ' of ' + grp.length : '';
+  $('dlg-label').textContent = findLabel(ev) + pos;
+  $('dlg-time').textContent = new Date(tsOf(ev)).toLocaleString(undefined,
+    { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  $('dlg-story').hidden = !ev.birdStory;
+  $('dlg-story').textContent = ev.birdStory || '';
+  $('dlg-raw').textContent = JSON.stringify(ev, null, 2);
+  $('dlg-next').disabled = i === 0;
+  $('dlg-prev').disabled = i === events.length - 1;
+  if (!$('dlg').open) $('dlg').showModal();
+  const on = strip.querySelector('.on');
+  if (on) on.scrollIntoView({ block: 'nearest', inline: 'center' });
+}
+
+function step(delta) {   // +1 = older, -1 = newer
+  const i = events.findIndex(e => e.traceId === current);
+  const next = events[i + delta];
+  if (i >= 0 && next) openEvent(next.traceId);
+}
+
+$('dlg-close').onclick = () => $('dlg').close();
+$('dlg-prev').onclick = () => step(1);
+$('dlg-next').onclick = () => step(-1);
+$('dlg-delete').onclick = async () => {
+  const ev = events.find(e => e.traceId === current);
+  if (!ev) return;
+  const what = ev._synthetic ? 'this recording' : 'this clip? The snapshot stays';
+  if (!confirm('Delete ' + what + '. This can\'t be undone.')) return;
+  const b = $('dlg-delete');
+  b.disabled = true;
+  try {
+    const r = await fetch('/api/video?trace=' + encodeURIComponent(ev.traceId), { method: 'DELETE' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const res = await r.json();
+    const trace = ev.traceId;
+    stopMedia();
+    await load();
+    if (res.entry_removed || !events.some(e => e.traceId === trace)) $('dlg').close();
+    else openEvent(trace);   // show the visit again, now with its snapshot
+  } catch (err) {
+    alert('Could not delete the clip: ' + err.message);
+  } finally {
+    b.disabled = false;
+  }
+};
+$('dlg').addEventListener('close', () => { stopMedia(); current = null; });
+$('dlg').addEventListener('click', (e) => { if (e.target === $('dlg')) $('dlg').close(); });
+document.addEventListener('keydown', (e) => {
+  if (!$('dlg').open) return;
+  if (e.key === 'ArrowLeft') step(-1);
+  else if (e.key === 'ArrowRight') step(1);
+});
+
+// ---------------------------------------------------------------- Data
+let autoStarted = false;
+
+async function load() {
+  try {
+    // watch=1 tells the server this page is auto-recording, so it checks for visits every 30 s.
+    const st = await fetch('/api/status' + (auto ? '?watch=1' : '')).then(r => r.json());
+    cfg.recordSeconds = st.record_seconds || cfg.recordSeconds;
+    renderStatus(st);
+    if (st.rev !== load.rev) {   // the archive changed: fetch the events again
+      const evs = await fetch('/api/events').then(r => r.json());
+      load.rev = st.rev;
+      const sig = evs.map(e => e.traceId + (e._local ? JSON.stringify(e._local) : '')).join('|');
+      if (sig !== load.sig) {
+        load.sig = sig; events = evs; renderList();
+        const poster = events.length ? imgSrc(events[0]) : '';
+        if (poster && $('poster').getAttribute('src') !== poster) $('poster').src = poster;
+      }
+    }
+    renderToday();   // every time, so "last visit 5m ago" stays current
+    $('live-start').disabled = !st.live;
+    if (st.live && !autoStarted && document.visibilityState === 'visible') { autoStarted = true; startLive(); }
+    else if (!st.live && !live) setPlayer('idle', 'Waiting for the first check of the camera…');
+    if (st.live) checkAuto(st.newest);
+  } catch (e) {
+    showError('Viewer server not reachable: ' + e.message);
+  }
+}
+
+function scheduleLoad() {
+  clearTimeout(scheduleLoad.t);
+  scheduleLoad.t = setTimeout(async () => { await load(); scheduleLoad(); }, auto ? 5000 : 15000);
+}
+
+// ---------------------------------------------------------------- Recording
+// Without a cloud plan VicoHome keeps only a snapshot per visit, but live view
+// works, so this page records clips from it with MediaRecorder and uploads them
+// to the server, which attaches each clip to its visit. With Auto-record on, a new
+// visit makes the page open live view, record cfg.recordSeconds and hang up.
+// This only works while the page is open: the server can't do WebRTC itself.
+const AUTO_KEY = 'feeder.autoRecord';
+const AUTO_MAX_AGE_S = 180;   // don't wake the camera for visits older than this
+const MANUAL_MAX_S = 120;
+const cfg = { recordSeconds: 20 };
+let auto = false;
+try { auto = localStorage.getItem(AUTO_KEY) === '1'; } catch (e) {}
+let seenNewest;               // traceId of the newest visit when we last looked
+let rec = null;               // recording in progress
+
+function renderAuto() {
+  $('auto-btn').setAttribute('aria-pressed', String(auto));
+}
+
+$('auto-btn').onclick = () => {
+  if (!auto && !window.MediaRecorder) { showError('This browser cannot record video. Try Safari or Chrome.'); return; }
+  auto = !auto;
+  try { localStorage.setItem(AUTO_KEY, auto ? '1' : '0'); } catch (e) {}
+  renderAuto();
+  load().then(scheduleLoad);
+};
+
+function checkAuto(newest) {
+  const id = newest && newest.traceId;
+  const first = seenNewest === undefined;
+  if (id === seenNewest) return;
+  seenNewest = id;
+  if (first || !auto || !id || !window.MediaRecorder) return;
+  // Log every decision so a missed visit can be explained from the connection log.
+  const age = Math.round(Date.now() / 1000 - newest.ts);
+  const at = fmtTime(newest.ts * 1000);
+  if (age > AUTO_MAX_AGE_S) { liveLog('auto-record: visit at ' + at + ' skipped, reported ' + age + ' s late'); return; }
+  if (rec) { liveLog('auto-record: visit at ' + at + ' falls in the clip already recording'); return; }
+  liveLog('auto-record: new visit at ' + at + ' (' + age + ' s ago)');
+  if (live && live.played) { startRecording(id, cfg.recordSeconds); return; }
+  if (live) { live.autoTrace = live.autoTrace || id; return; }   // connecting: record once video flows
+  startLive(0, id);
+}
+
+function pickMime() {
+  for (const t of ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm']) {
+    if (MediaRecorder.isTypeSupported(t)) return t;
+  }
+  return '';
+}
+
+function grabStill(video) {
+  return new Promise((resolve) => {
+    try {
+      const c = document.createElement('canvas');
+      c.width = video.videoWidth; c.height = video.videoHeight;
+      if (!c.width) return resolve(null);
+      c.getContext('2d').drawImage(video, 0, 0);
+      c.toBlob(resolve, 'image/jpeg', 0.85);
+    } catch (e) { resolve(null); }
+  });
+}
+
+// trace: the visit the clip belongs to, or null for a manual recording (which gets its own entry).
+function startRecording(trace, seconds) {
+  const v = $('live-video');
+  if (rec || !live || !v.srcObject || !window.MediaRecorder) return;
+  // A remote audio track stays muted until the camera sends audio; a silent track can
+  // stall some recorders, so only include audio that is actually flowing.
+  const tracks = v.srcObject.getTracks().filter(t => t.readyState === 'live' && (t.kind === 'video' || !t.muted));
+  const mime = pickMime();
+  let mr;
+  try { mr = new MediaRecorder(new MediaStream(tracks), mime ? { mimeType: mime } : undefined); }
+  catch (err) { liveLog('cannot record: ' + err.message); return; }
+  const R = rec = { mr, chunks: [], trace, session: live, started: Date.now(), still: null,
+                    ext: /mp4/i.test(mr.mimeType || mime) ? 'mp4' : 'webm' };
+  mr.ondataavailable = (e) => { if (e.data && e.data.size) R.chunks.push(e.data); };
+  mr.onstop = () => finishRecording(R);
+  mr.start(1000);
+  if (!trace) grabStill(v).then(b => { R.still = b; });
+  R.stopTimer = setTimeout(stopRecording, seconds * 1000);
+  R.tick = setInterval(renderRec, 1000);
+  liveLog('recording ' + (trace ? seconds + ' s for the new visit' : '(manual)') + ' as ' + (mr.mimeType || mime || 'default'));
+  renderRec();
+}
+
+function stopRecording() {
+  if (rec && rec.mr.state !== 'inactive') rec.mr.stop();
+}
+
+async function finishRecording(R) {
+  clearTimeout(R.stopTimer); clearInterval(R.tick);
+  if (rec === R) rec = null;
+  renderRec();
+  // An auto-started session hangs up once its clip is done, to save the battery.
+  const hangUp = () => {
+    if (live && live === R.session && live.byAuto && !live.keep) { stopLive(); setPlayer('idle', ''); }
+  };
+  const secs = (Date.now() - R.started) / 1000;
+  const blob = new Blob(R.chunks, { type: R.mr.mimeType || (R.ext === 'mp4' ? 'video/mp4' : 'video/webm') });
+  if (!blob.size || secs < 2) { liveLog('recording too short, not saved'); hangUp(); return; }
+  const trace = R.trace || ('rec-' + R.started);
+  const url = (kind, ext) => '/api/recording?' + new URLSearchParams({ trace, kind, ext, ts: String(Math.round(R.started / 1000)) });
+  const post = async (u, body) => { const r = await fetch(u, { method: 'POST', body }); if (!r.ok) throw new Error('HTTP ' + r.status); };
+  hangUp();
+  try {
+    if (!R.trace && R.still) await post(url('image', 'jpg'), R.still);
+    await post(url('video', R.ext), blob);
+    liveLog('clip saved: ' + Math.round(secs) + ' s, ' + Math.round(blob.size / 1024) + ' KB');
+    load();
+  } catch (err) {
+    liveLog('saving the clip failed: ' + err.message);
+    showError('Saving the recorded clip failed: ' + err.message);
+  }
+}
+
+function renderRec() {
+  const b = $('rec-btn');
+  if (rec) {
+    b.textContent = '■ ' + Math.round((Date.now() - rec.started) / 1000) + ' s';
+    b.classList.add('rec');
+    b.setAttribute('aria-label', 'Stop recording');
+    b.disabled = false;
+  } else {
+    b.textContent = '⏺ Record';
+    b.classList.remove('rec');
+    b.setAttribute('aria-label', 'Record a clip');
+    b.disabled = !(live && live.played) || !window.MediaRecorder;
+  }
+}
+
+$('rec-btn').onclick = () => {
+  if (rec) { stopRecording(); return; }
+  if (live) live.keep = true;   // the viewer is watching: don't hang up after an auto clip
+  startRecording(null, MANUAL_MAX_S);
+};
+
+$('refresh').onclick = async () => {
+  const b = $('refresh');
+  b.disabled = true; b.classList.add('busy');
+  try { await fetch('/api/refresh', { method: 'POST' }); } catch (e) {}
+  setTimeout(() => { b.disabled = false; b.classList.remove('busy'); load(); }, 4000);
+};
+
+// ---------------------------------------------------------------- Live view
+// WebRTC with the camera via VicoHome's TURN relays. Signalling goes through
+// the local server (/api/live/ws), which authenticates to VicoHome; this page
+// does JOIN_LIVE -> PEER_IN -> SDP offer/answer + ICE, then asks the camera to
+// start streaming over a data channel. Starts when the page opens, pauses while
+// the page is hidden, and stops after LIVE_MAX_MS because live drains the battery.
+const LIVE_MAX_MS = 5 * 60 * 1000;
+const LIVE_FIRST_FRAME_MS = 60 * 1000;
+let live = null;          // current session
+let resumeOnShow = false; // restart live when the page becomes visible again
+
+const b64enc = (s) => btoa(String.fromCharCode(...new TextEncoder().encode(s)));
+const b64dec = (s) => new TextDecoder().decode(Uint8Array.from(atob(s), c => c.charCodeAt(0)));
+
+// Player states: idle | connecting | live | stopped
+function setPlayer(state, msg) {
+  $('player').dataset.state = state;
+  if (msg !== undefined) $('live-msg').textContent = msg;
+  $('live-dot').className = 'dot ' + (state === 'live' ? 'ok' : state === 'connecting' ? 'warn' : state === 'stopped' ? 'bad' : '');
+  $('live-foot').textContent = state === 'live' ? 'Live · stops after 5 minutes to save the battery'
+    : state === 'connecting' ? 'Connecting to the camera…' : 'Live view is off';
+}
+
+function liveStatus(msg, state) {
+  liveLog(msg);
+  if (state === 'ok') setPlayer('live');
+  else if (state === 'bad') setPlayer('stopped', msg);
+  else setPlayer('connecting', msg);
+}
+
+function liveLog(msg) {
+  const box = $('live-log');
+  box.textContent += new Date().toLocaleTimeString() + '  ' + msg + '\n';
+  box.scrollTop = box.scrollHeight;
+}
+
+// One-line summary of a signalling message for the log, hiding anything secret-looking or long.
+function summarize(m) {
+  return (m.method || '?') + ' ' + Object.keys(m).filter(k => k !== 'method').map(k => {
+    const v = m[k];
+    if (/token|cred|sign|pass|payload|sdp/i.test(k)) return k + '=<hidden>';
+    if (typeof v === 'number' || typeof v === 'boolean' || v === null) return k + '=' + v;
+    if (typeof v === 'string') return k + '=' + (v.length <= 60 ? v : v.slice(0, 60) + '…');
+    return k + '=<' + (Array.isArray(v) ? v.length + ' items' : typeof v) + '>';
+  }).join(' ');
+}
+
+function stopLive(reason) {
+  if (!live) return;
+  if (rec && rec.session === live) stopRecording();   // saves what was recorded so far
+  const L = live; live = null;
+  renderRec();
+  clearTimeout(L.maxTimer); clearTimeout(L.frameTimer); clearInterval(L.clock);
+  try { L.dc && L.dc.close(); } catch (e) {}
+  try { L.pc && L.pc.close(); } catch (e) {}
+  try { L.ws && L.ws.close(); } catch (e) {}
+  $('live-video').srcObject = null;
+  if (reason) { liveLog(reason); setPlayer('stopped', reason); }
+  else setPlayer('idle', '');
+}
+
+// A failure before the first frame is retried (the camera is sometimes slow to wake): once
+// for a normal session, twice for an Auto-record one. "Already open" is retried only for
+// Auto-record: right after the previous clip hangs up, the server may still hold the
+// one-session lock for a moment.
+function failLive(L, reason) {
+  if (live !== L) return;
+  const busy = /another tab/.test(reason || '');
+  const retry = !L.played && L.retries < (L.autoTrace ? 2 : 1) && (!busy || L.autoTrace);
+  if (!retry) {
+    if (busy && L.autoTrace) reason = 'Couldn’t record the new visit: live view is open on another device or tab.';
+    return stopLive(reason);
+  }
+  stopLive();
+  liveLog(reason + ' Retrying…');
+  setPlayer('connecting', 'Retrying…');
+  setTimeout(() => {
+    if (!live && (L.autoTrace || document.visibilityState === 'visible')) startLive(L.retries + 1, L.autoTrace);
+  }, busy ? 4000 : 2000);
+}
+
+// retries: how many times this start has already been retried (0 for a fresh start).
+// autoTrace: set when Auto-record opened this session for a new visit; it records once video flows.
+function startLive(retries, autoTrace) {
+  retries = typeof retries === 'number' ? retries : 0;
+  const isRetry = retries > 0;
+  stopLive();
+  if (!isRetry && !autoTrace) $('live-log').textContent = '';
+  $('live-video').srcObject = null;
+  liveStatus(autoTrace ? 'New visit, connecting to record it…' : 'Connecting…');
+  const L = live = { ws: null, pc: null, dc: null, t: null, pending: [], remoteSet: false, sessionId: null,
+                     retries, played: false, offered: false, autoTrace: autoTrace || null,
+                     byAuto: !!autoTrace, keep: false };
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  L.ws = new WebSocket(proto + '://' + location.host + '/api/live/ws');
+  const send = (obj) => { if (L.ws.readyState === 1) L.ws.send(JSON.stringify(obj)); };
+  L.maxTimer = setTimeout(() => { if (live === L) stopLive('Paused after 5 minutes to save the battery.'); }, LIVE_MAX_MS);
+  L.frameTimer = setTimeout(() => failLive(L, 'No video after 60 s.'), LIVE_FIRST_FRAME_MS);
+
+  L.ws.onclose = () => failLive(L, 'Signalling connection closed.');
+  L.ws.onerror = () => liveLog('signalling socket error');
+  L.ws.onmessage = async (e) => {
+    if (live !== L) return;
+    let m; try { m = JSON.parse(e.data); } catch (err) { return; }
+    try {
+      switch (m.method) {
+        case 'STATUS': liveStatus(m.message); break;
+        case 'ERROR': failLive(L, m.message); break;
+        case 'TICKET': setupPeer(L, m, send); break;
+        case 'AUTH_RESPONSE':
+          if (m.code !== 0) return failLive(L, 'Signalling login refused (code ' + m.code + ').');
+          liveStatus('Asking the camera to join…');
+          send({ method: 'JOIN_LIVE', role: 'viewer', name: L.t.id, group: L.t.groupId,
+                 traceId: L.t.traceId, recipientClientId: L.t.serial });
+          break;
+        case 'JOIN_LIVE_RESPONSE':
+          // A non-zero code is often just "camera is asleep, server is waking it"
+          // (sent in Chinese); PEER_IN follows when it's awake. The 60 s timer covers real failures.
+          liveLog('JOIN_LIVE_RESPONSE code=' + m.code + (m.message ? ' ' + m.message : ''));
+          if (typeof m.code === 'number' && m.code !== 0) liveStatus('Waking the camera…');
+          break;
+        case 'WEBRTC_CONFIG': liveLog(summarize(m)); break;
+        case 'PEER_IN':
+          liveLog(summarize(m));
+          // The camera can announce itself more than once while waking; re-offering
+          // on the same session confuses it, so negotiate only once.
+          if (L.offered) { liveLog('camera joined again; keeping the first offer'); break; }
+          L.offered = true;
+          await sendOffer(L, send);
+          break;
+        case 'PEER_OUT':
+          liveLog(summarize(m) + ' (signaling ' + (L.pc ? L.pc.signalingState : '-') + ', answer ' + (L.remoteSet ? 'yes' : 'no') + ')');
+          failLive(L, 'The camera left the session.');
+          break;
+        case 'TRANSMIT': await onTransmit(L, m); break;
+        case 'TRANSMIT_RESPONSE': case 'RESPONSE': liveLog(summarize(m)); break;
+        default: liveLog('unhandled ' + summarize(m));
+      }
+    } catch (err) {
+      liveLog('error: ' + err.message);
+    }
+  };
+}
+
+function setupPeer(L, t, send) {
+  L.t = t;
+  L.sessionId = 'Android-' + t.id + '-' + Date.now();
+  liveLog('ticket ok, ' + t.iceServers.length + ' relay servers');
+  const pc = L.pc = new RTCPeerConnection({ iceServers: t.iceServers, bundlePolicy: 'max-bundle' });
+  // The camera expects a data channel named after its serial number.
+  L.dc = pc.createDataChannel(t.serial);
+  L.dc.onopen = () => {
+    liveStatus('Connected, starting stream…');
+    const ts = String(Date.now());
+    L.dc.send(JSON.stringify({ action: 'startLive', requestID: ts, connectionID: '', timeStamp: ts,
+                               size: 'medium', resolution: '1280x720' }));
+  };
+  L.dc.onmessage = (e) => liveLog('camera: ' + String(e.data).slice(0, 200));
+  const at = pc.addTransceiver('audio', { direction: 'sendrecv' });
+  const vt = pc.addTransceiver('video', { direction: 'recvonly' });
+  // Keep the offer small: the camera's embedded WebRTC stack silently drops a full
+  // browser offer (it never answers). Offer only H.265 (the camera's live codec) then
+  // H.264, with no RTX/RED/FEC, and only basic audio codecs.
+  try {
+    const getCaps = (kind) => RTCRtpReceiver.getCapabilities && RTCRtpReceiver.getCapabilities(kind);
+    const vcaps = getCaps('video');
+    if (vcaps && vt.setCodecPreferences) {
+      const h265 = vcaps.codecs.filter(c => /video\/(h265|hevc)/i.test(c.mimeType));
+      const h264 = vcaps.codecs.filter(c => /video\/h264/i.test(c.mimeType) && /packetization-mode=1/.test(c.sdpFmtpLine || ''));
+      const keep = h265.concat(h264.slice(0, 2));
+      if (keep.length) vt.setCodecPreferences(keep);
+    }
+    const acaps = getCaps('audio');
+    if (acaps && at.setCodecPreferences) {
+      const rank = (c) => ['audio/pcmu', 'audio/pcma', 'audio/opus'].indexOf(c.mimeType.toLowerCase());
+      const keep = acaps.codecs.filter(c => rank(c) >= 0).sort((a, b) => rank(a) - rank(b));
+      if (keep.length) at.setCodecPreferences(keep);
+    }
+  } catch (err) { liveLog('codec preference not applied: ' + err.message); }
+  pc.ontrack = (e) => {
+    const v = $('live-video');
+    if (!v.srcObject) v.srcObject = e.streams[0] || new MediaStream();
+    if (!e.streams[0]) v.srcObject.addTrack(e.track);
+    liveLog('track: ' + e.track.kind);
+    if (e.track.kind === 'video') {
+      // Video is flowing once the track unmutes (RTP arriving). Don't wait for the <video>
+      // element to play: browsers hold playback back in hidden tabs, which used to stop
+      // Auto-record from ever starting. MediaRecorder records the stream either way.
+      const flowing = () => {
+        if (live !== L || L.played) return;
+        L.played = true;
+        clearTimeout(L.frameTimer);
+        const started = Date.now();
+        const tick = () => {
+          const s = Math.floor((Date.now() - started) / 1000);
+          $('live-time').textContent = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+        };
+        tick(); L.clock = setInterval(tick, 1000);
+        liveStatus('Live', 'ok');
+        if (L.autoTrace && !rec) startRecording(L.autoTrace, cfg.recordSeconds);
+        renderRec();
+      };
+      v.onplaying = flowing;
+      // Track "unmute" isn't reliable in Safari (it can report unmuted before any packet),
+      // so also watch the receiver stats for decoded frames.
+      const watch = setInterval(async () => {
+        if (live !== L || L.played) return clearInterval(watch);
+        try {
+          (await pc.getStats()).forEach((r) => {
+            if (r.type === 'inbound-rtp' && (r.kind || r.mediaType) === 'video' && r.framesDecoded > 0) flowing();
+          });
+        } catch (err) { /* closed */ }
+      }, 500);
+      v.muted = true;   // browsers only autoplay muted video; the sound button unmutes
+      updateMute();
+      v.play().catch(() => {});
+    }
+  };
+  pc.onicecandidate = (e) => {
+    // Skip loopback, mDNS (.local, which the camera can't resolve) and TCP candidates.
+    if (!e.candidate || !e.candidate.candidate ||
+        / 127\.0\.0\.1 | ::1 |\.local | tcp /i.test(e.candidate.candidate)) return;
+    liveLog('ice candidate sent: ' + (e.candidate.candidate.match(/ typ (\w+)/) || [])[1]);
+    send({ method: 'TRANSMIT', messageType: 'ICE_CANDIDATE',
+           messagePayload: b64enc(JSON.stringify({ sdpMid: e.candidate.sdpMid || '', sdpMLineIndex: e.candidate.sdpMLineIndex || 0,
+                                                   candidate: e.candidate.candidate })),
+           recipientClientId: t.serial, senderClientId: t.id, sessionId: L.sessionId, version: '0.0.1' });
+  };
+  pc.onconnectionstatechange = () => {
+    liveLog('connection: ' + pc.connectionState);
+    if (pc.connectionState === 'failed') failLive(L, 'Could not connect to the camera.');
+  };
+}
+
+async function sendOffer(L, send) {
+  liveStatus('Camera joined, connecting…');
+  const offer = await L.pc.createOffer();
+  await L.pc.setLocalDescription(offer);
+  const vcodecs = [...new Set((offer.sdp.match(/a=rtpmap:\d+ [A-Za-z0-9-]+/g) || [])
+    .map(s => s.split(' ')[1]).filter(c => /^(H26[45]|VP[89]|AV1)$/i.test(c)))];
+  liveLog('offer sent, video codecs offered: ' + (vcodecs.join(', ') || 'none') +
+          ', SDP ' + offer.sdp.length + ' bytes (' + b64enc(JSON.stringify({ type: 'offer', sdp: offer.sdp })).length + ' base64)');
+  send({ method: 'TRANSMIT', messageType: 'SDP_OFFER',
+         messagePayload: b64enc(JSON.stringify({ type: 'offer', sdp: offer.sdp })),
+         mode: 'vicoo', recipientClientId: L.t.serial, senderClientId: L.t.id, sessionId: L.sessionId,
+         viewerType: 'a4x_sdk', resolution: '1280x720', version: '0.0.1' });
+}
+
+async function onTransmit(L, m) {
+  const payload = JSON.parse(b64dec(m.messagePayload || ''));
+  if (m.messageType === 'SDP_ANSWER') {
+    const codec = (payload.sdp.match(/a=rtpmap:\d+ (H26[45]|VP[89]|AV1)/i) || [])[1];
+    liveLog('answer received' + (codec ? ', video codec ' + codec : ''));
+    await L.pc.setRemoteDescription({ type: 'answer', sdp: payload.sdp });
+    L.remoteSet = true;
+    for (const c of L.pending.splice(0)) await L.pc.addIceCandidate(c).catch(err => liveLog('ice: ' + err.message));
+  } else if (m.messageType === 'ICE_CANDIDATE') {
+    const c = { candidate: payload.candidate, sdpMid: payload.sdpMid, sdpMLineIndex: payload.sdpMLineIndex };
+    if (L.remoteSet) await L.pc.addIceCandidate(c).catch(err => liveLog('ice: ' + err.message));
+    else L.pending.push(c);
+  }
+}
+
+// ---- player controls
+function updateMute() {
+  const v = $('live-video');
+  const btn = $('mute-btn');
+  btn.replaceChildren(icon(v.muted ? 'muted' : 'sound'));
+  btn.setAttribute('aria-label', v.muted ? 'Turn sound on' : 'Turn sound off');
+}
+$('mute-btn').onclick = () => {
+  const v = $('live-video');
+  v.muted = !v.muted;
+  if (!v.muted) v.play().catch(() => {});
+  updateMute();
+};
+$('fs-btn').onclick = () => {
+  const p = $('player'), v = $('live-video');
+  if (document.fullscreenElement) document.exitFullscreen();
+  else if (p.requestFullscreen && document.fullscreenEnabled) p.requestFullscreen().catch(() => {});
+  else if (v.webkitEnterFullscreen) v.webkitEnterFullscreen();   // iPhone
+};
+$('live-start').onclick = () => startLive();
+$('live-stop').onclick = () => { resumeOnShow = false; stopLive(); setPlayer('idle', 'Live view stopped.'); };
+// Watching an auto-record session: keep it open after the clip.
+$('player').addEventListener('click', () => { if (live) live.keep = true; });
+$('log-toggle').onclick = () => {
+  const w = $('log-wrap');
+  w.hidden = !w.hidden;
+  $('log-toggle').setAttribute('aria-expanded', String(!w.hidden));
+};
+
+// Pause live while the app is in the background; resume when it comes back.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') {
+    // An auto-record session or a recording in progress keeps going in the background.
+    if (live && !live.autoTrace && !rec) { resumeOnShow = true; stopLive(); setPlayer('idle', 'Paused while the app was in the background.'); }
+  } else if (resumeOnShow) {
+    resumeOnShow = false;
+    startLive();
+  } else {
+    load();
+  }
+});
+window.addEventListener('pagehide', () => stopLive());
+
+setPlayer('idle', '');
+renderAuto();
+renderRec();
+load().then(scheduleLoad);
+</script>
+</body>
+</html>

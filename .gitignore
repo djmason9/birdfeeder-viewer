@@ -1,0 +1,14 @@
+# Secrets: never commit
+.env
+.env.*
+!.env.example
+
+# Archive, recordings and app captures (contain tokens, account details and media)
+data/
+*.flows
+*.log
+
+# Python / macOS
+__pycache__/
+*.pyc
+.DS_Store
